@@ -6,23 +6,75 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["fullscreen", "standalone"],
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
   "orientation": "any",
   "background_color": "#000000",
   "theme_color": "#000000",
   "lang": "en",
   "dir": "ltr",
-  "categories": ["entertainment", "utilities"],
+  "categories": [
+    "entertainment",
+    "utilities"
+  ],
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "screenshots": [
-    { "src": "icons/screenshot-narrow.png", "sizes": "780x1688", "type": "image/png", "form_factor": "narrow", "label": "Type a message and pick a look" },
-    { "src": "icons/screenshot-wide.png", "sizes": "1688x780", "type": "image/png", "form_factor": "wide", "label": "Present mode fills the screen" }
+    {
+      "src": "icons/screenshot-narrow.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Type a message and pick a look"
+    },
+    {
+      "src": "icons/screenshot-wide.png",
+      "sizes": "1688x780",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Present mode fills the screen"
+    }
   ],
   "shortcuts": [
-    { "name": "New sign", "short_name": "New", "url": "./#m=", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
-  ]
+    {
+      "name": "New sign",
+      "short_name": "New",
+      "url": "./#m=",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": {
+      "text": "text",
+      "title": "title",
+      "url": "url"
+    }
+  }
 }
