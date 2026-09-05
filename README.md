@@ -13,7 +13,7 @@ It is a static PWA with no build step and no dependencies. Open it once and it w
 - **Grab the strip**: drag the text with your finger and throw it. It eases back to cruise speed.
 - **Short messages dwell**: text that fits slides in, holds centred for a moment, and slides out. Long messages loop.
 - **Boot sequence**: the sign powers on with a self-test sweep, sparkles in the wordmark, runs an RGB colour test, and hands over to your message. Tap to fast-forward.
-- **Share**: the URL hash carries the message and settings, so a link reproduces your sign. Installed on Android, scrolLED also appears in the system share sheet.
+- **Share**: the URL hash carries the message and settings, so a link reproduces your sign. Where file sharing is supported, Share also attaches a rendered PNG card of the sign. Installed on Android, scrolLED appears in the system share sheet as a target too.
 - **Installable PWA** with offline support and a light-touch "new version ready" prompt.
 
 ## How it renders
