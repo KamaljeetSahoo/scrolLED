@@ -12,6 +12,8 @@ It is a static PWA with no build step and no dependencies. Open it once and it w
 - **Present mode**: the UI disappears, the screen stays awake, and the sign fills the display. Hold the phone sideways and the sign rotates to match, even with rotation lock on (gravity sensing). Tap for a small overlay with exit, pause and rotate. The back button exits.
 - **Grab the strip**: drag the text with your finger and throw it. It eases back to cruise speed.
 - **Short messages dwell**: text that fits slides in, holds centred for a moment, and slides out. Long messages loop.
+- **Beat** (opt-in, uses the microphone): the LEDs swell, the glow blooms and the colours punch on every bass hit. Turn it on with the Beat chip or the mic button in Present mode.
+- **Motion**: tilt the phone and the highlight on each LED dome shifts like a real glossy LED catching the light; dance with it and the sign pulses with your movement.
 - **Boot sequence**: the sign powers on with a self-test sweep, sparkles in the wordmark, runs an RGB colour test, and hands over to your message. Tap to fast-forward.
 - **Share**: the URL hash carries the message and settings, so a link reproduces your sign. Where file sharing is supported, Share also attaches a rendered PNG card of the sign. Installed on Android, scrolLED appears in the system share sheet as a target too.
 - **Installable PWA** with offline support and a light-touch "new version ready" prompt.
@@ -24,6 +26,7 @@ The message is drawn once at high resolution, then reduced to per-row prefix sum
 js/raster.js   message -> Strip (prefix sums), fonts
 js/engine.js   frame loop, motion (dwell, stepping, grab/fling), WebGL + Canvas2D renderers
 js/boot.js     power-on self-test choreography
+js/reactive.js microphone (bass, beats) and motion (energy, tilt, orientation) senses
 js/app.js      UI, state, present mode, gestures, PWA plumbing
 js/font5x8.js  bitmap font (generated from tools/glyphs.json)
 ```

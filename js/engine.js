@@ -39,6 +39,9 @@ uniform float uShape;      // 0 round, 1 square
 uniform float uBright;
 uniform float uPresent;    // 0 preview, 1 presenting (distance profile)
 uniform float uTime;
+uniform float uPulse;      // 0..1 energy from mic / motion
+uniform float uBeat;       // 0..1 beat impulse
+uniform vec2 uTilt;        // physical "up" in logical space (y down); shifts the dome highlight
 
 vec3 hsv(float h) {
   vec3 p = abs(fract(vec3(h) + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
@@ -55,7 +58,7 @@ vec3 ledCol(vec4 s, vec2 cell) {
   float mx = max(s.r, max(s.g, s.b));
   float mn = min(s.r, min(s.g, s.b));
   float sat = mx > 0.002 ? (mx - mn) / mx : 0.0;
-  float hue = fract(cell.x / (uGrid.x * 1.6) + cell.y / uGrid.y * 0.06 - uTime * 0.05);
+  float hue = fract(cell.x / (uGrid.x * 1.6) + cell.y / uGrid.y * 0.06 - uTime * 0.05 + uBeat * 0.08);
   vec3 rb = mix(hsv(hue), vec3(1.0), 0.10) * lum;
   return mix(rb, s.rgb, smoothstep(0.15, 0.6, sat)); // emoji keep their own colours
 }
@@ -90,13 +93,15 @@ void main() {
     float small = clamp((uPitch - 4.0) / 8.0, 0.0, 1.0);
     float R = mix(mix(0.44, 0.37, small), 0.45, uPresent);   // tiny LEDs and presenting: fuller discs
     if (uShape > 0.5) R -= 0.03;
+    R *= 1.0 + 0.05 * uPulse + 0.04 * uBeat;                  // the discs swell with the music
     float d = uShape < 0.5 ? length(f) : max(abs(f.x), abs(f.y));
     float aa = 0.8 / uPitch;
     core = 1.0 - smoothstep(R - aa, R + aa, d);
-    float dome = 1.0 - smoothstep(0.0, R, d);                 // 1 at the centre, 0 at the rim
+    // The dome's bright spot sits toward physical "up", like a glossy LED catching the light.
+    float dome = 1.0 - smoothstep(0.0, R, length(f - uTilt * 0.13));
     float hot = smoothstep(0.55, 1.0, v) * dome;             // overdriven white core
     vec3 lit = mix(c, vec3(max(c.r, max(c.g, c.b))), mix(0.22, 0.45, uPresent) * hot);
-    lit *= 0.78 + 0.42 * dome;
+    lit *= (0.78 + 0.42 * dome) * (1.0 + 0.30 * uBeat);
     lit *= 0.94 + 0.06 * hash(cell);                          // tiny per-LED gain variance
     vec3 unlit = (vec3(0.0026) + uTint * 0.0014) * (1.0 - uPresent) * mix(0.5, 1.0, small);
     col += core * (unlit * (1.0 - v) + lit);
@@ -110,7 +115,7 @@ void main() {
 
   // The halo sums are perceptual-ish quantities; squaring them before adding in
   // linear light keeps the falloff soft instead of flooding the gaps.
-  float glowGain = (0.05 + 0.17 * uGlow) * (1.0 + 0.35 * uPresent);
+  float glowGain = (0.05 + 0.17 * uGlow) * (1.0 + 0.35 * uPresent) * (1.0 + 0.9 * uPulse + 0.7 * uBeat);
   col += halo * halo * glowGain * (1.0 - 0.55 * core);
   col += wideCol * wideCol * (0.07 * uGlow);
   col *= uBright;
@@ -152,6 +157,7 @@ export class Engine {
     this.brightCur = 1;
     this.present = 0;
     this.presentCur = 0;
+    this.pulse = 0; this.beat = 0; this.up = [0, 0]; // reactive inputs (see reactive.js)
     this.rect = { x: 0, y: 0, w: 1, h: 1 };
     this.rectCur = { x: 0, y: 0, w: 1, h: 1 };
     this.angle = 0;          // degrees
@@ -208,6 +214,11 @@ export class Engine {
   setBrightness(b, immediate = false) { this.bright = b; if (immediate) this.brightCur = b; }
   setPresent(p, immediate = false) { this.present = p ? 1 : 0; if (immediate) this.presentCur = this.present; }
   setOverride(fn) { this.override = fn; this.dirty = true; }
+  /** Live inputs from the senses: energy 0..1, beat impulse 0..1, physical up in screen coords (y down). */
+  setReactive(pulse, beat, up) {
+    if (Math.abs(pulse - this.pulse) > 0.003 || Math.abs(beat - this.beat) > 0.003 || Math.abs(up[0] - this.up[0]) + Math.abs(up[1] - this.up[1]) > 0.004) this.dirty = true;
+    this.pulse = pulse; this.beat = beat; this.up = [up[0], up[1]];
+  }
   resetPosition() { this.enterFromEdge = true; this.dwell = 'enter'; this.flingVel = null; }
   /** Brief power dip, like a controller re-configuring. */
   brownout(depth = 0.3) { this.brightCur = Math.min(this.brightCur, depth); }
@@ -490,7 +501,7 @@ export class Engine {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     const u = {};
-    for (const name of ['uTex', 'uGrid', 'uCanvas', 'uToLogical', 'uPitch', 'uGridOrigin', 'uTint', 'uMode', 'uGlow', 'uShape', 'uBright', 'uPresent', 'uTime']) u[name] = gl.getUniformLocation(prog, name);
+    for (const name of ['uTex', 'uGrid', 'uCanvas', 'uToLogical', 'uPitch', 'uGridOrigin', 'uTint', 'uMode', 'uGlow', 'uShape', 'uBright', 'uPresent', 'uTime', 'uPulse', 'uBeat', 'uTilt']) u[name] = gl.getUniformLocation(prog, name);
     gl.uniform1i(u.uTex, 0);
     gl.clearColor(0, 0, 0, 1);
     this.gl = gl; this.prog = prog; this.tex = tex; this.u = u; this.texW = 0; this.texH = 0;
@@ -520,6 +531,11 @@ export class Engine {
     gl.uniform1f(u.uBright, this.brightCur);
     gl.uniform1f(u.uPresent, this.presentCur);
     gl.uniform1f(u.uTime, this.time);
+    gl.uniform1f(u.uPulse, this.pulse);
+    gl.uniform1f(u.uBeat, this.beat);
+    // physical up (screen, y down) -> logical space: rotate by -angle
+    const th2 = this.angleCur * Math.PI / 180, c2 = Math.cos(th2), s2 = Math.sin(th2);
+    gl.uniform2f(u.uTilt, c2 * this.up[0] + s2 * this.up[1], -s2 * this.up[0] + c2 * this.up[1]);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }

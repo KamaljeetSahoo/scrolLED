@@ -27,6 +27,7 @@
   <link rel="modulepreload" href="js/raster.js">
   <link rel="modulepreload" href="js/font5x8.js">
   <link rel="modulepreload" href="js/boot.js">
+  <link rel="modulepreload" href="js/reactive.js">
   <style>
     /* Critical: paint black instantly with a tiny pulsing dot row while modules load. */
     html, body { margin: 0; background: #000; height: 100%; overflow: hidden; }
@@ -106,6 +107,9 @@
           <button id="motionBtn" class="chip toggle" type="button" aria-pressed="false"><span>Smooth</span></button>
           <button id="afterBtn" class="chip toggle" type="button" aria-pressed="false"><span>Afterglow</span></button>
           <button id="glowBtn" class="chip toggle" type="button" aria-pressed="false"><span>Glow</span></button>
+          <button id="beatBtn" class="chip toggle" type="button" aria-pressed="false" aria-label="React to music">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span>Beat</span>
+          </button>
         </div>
       </div>
     </div>
@@ -125,6 +129,9 @@
     </button>
     <button id="rotateBtn" class="hud-btn" type="button" aria-label="Rotate display">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/></svg>
+    </button>
+    <button id="micBtn" class="hud-btn" type="button" aria-label="React to music" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
     </button>
   </div>
 

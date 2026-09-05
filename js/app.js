@@ -5,6 +5,7 @@ import { Engine } from './engine.js';
 import { FONTS, FONT_BY_ID, ROW_OPTIONS, rasterize, preloadFonts } from './raster.js';
 import { GLYPHS } from './font5x8.js';
 import { bootSequence } from './boot.js';
+import { Reactive } from './reactive.js';
 
 const $ = (sel) => document.querySelector(sel);
 const root = document.documentElement;
@@ -34,7 +35,7 @@ const GLOW_LEVELS = [0.12, 0.6, 1.0];
 const GLOW_LABELS = ['Glow off', 'Glow', 'Glow+'];
 const PLACEHOLDER = 'type something...';
 const STORE_KEY = 'scrolled.v1';
-const DEFAULTS = { text: '', font: 'pixel', color: 'red', speed: 50, rows: 20, dir: 'left', shape: 'round', motion: 'smooth', afterglow: false, glow: 1, recents: [] };
+const DEFAULTS = { text: '', font: 'pixel', color: 'red', speed: 50, rows: 20, dir: 'left', shape: 'round', motion: 'smooth', afterglow: false, glow: 1, mic: false, recents: [] };
 
 // ------------------------------------------------------------------- state
 function loadState() {
@@ -120,6 +121,8 @@ const shapeBtn = $('#shapeBtn');
 const motionBtn = $('#motionBtn');
 const afterBtn = $('#afterBtn');
 const glowBtn = $('#glowBtn');
+const beatBtn = $('#beatBtn');
+const micBtn = $('#micBtn');
 const presentBtn = $('#presentBtn');
 const handleBtn = $('#handleBtn');
 const hud = $('#hud');
@@ -134,10 +137,20 @@ const isStandalone = matchMedia('(display-mode: standalone), (display-mode: full
 
 // ------------------------------------------------------------------ engine
 const engine = new Engine(canvas);
+const reactive = new Reactive();
 engine.start();
 let firstFrame = false;
+let lastFrameAt = performance.now();
+let lastBeatVar = 0;
 engine.onFrame = () => {
   if (!firstFrame) { firstFrame = true; splash.classList.add('out'); setTimeout(() => splash.remove(), 400); }
+  const now = performance.now();
+  const dt = (now - lastFrameAt) / 1000; lastFrameAt = now;
+  // The senses feed the sign every frame (and, subtly, the UI).
+  reactive.update(dt);
+  engine.setReactive(reactive.pulse, reactive.beat, reactive.up);
+  const b = Math.max(reactive.beat, reactive.pulse * 0.5);
+  if (!reducedMotion && Math.abs(b - lastBeatVar) > 0.02) { lastBeatVar = b; root.style.setProperty('--beat', b.toFixed(3)); }
   if (!booting) layout();
 };
 
@@ -358,6 +371,23 @@ motionBtn.addEventListener('click', () => { state.motion = state.motion === 'ste
 afterBtn.addEventListener('click', () => { state.afterglow = !state.afterglow; syncToggles(); applyEngine(); persist(); vibrate(6); });
 glowBtn.addEventListener('click', () => { state.glow = (state.glow + 1) % 3; syncToggles(); applyEngine(); persist(); vibrate(6); });
 
+// Beat: the sign listens to the room. Opt-in, because it asks for the microphone.
+function syncMic() {
+  const on = reactive.micOn;
+  beatBtn.setAttribute('aria-pressed', String(on));
+  micBtn.setAttribute('aria-pressed', String(on));
+}
+async function toggleMic() {
+  vibrate(6);
+  if (reactive.micOn) { reactive.stopMic(); state.mic = false; syncMic(); persist(); return; }
+  const ok = await reactive.startMic();
+  state.mic = ok; syncMic(); persist();
+  if (!ok) toast(reactive.micSupported ? 'Microphone not available' : 'This browser has no microphone access', 2600);
+  else if (!present) toast('Listening. The sign now moves to the music', 2200);
+}
+beatBtn.addEventListener('click', toggleMic);
+micBtn.addEventListener('click', () => { toggleMic(); showHud(); });
+
 // The grab handle collapses the sheet to just the message and the Present button.
 let collapsed = false;
 function setCollapsed(v) {
@@ -487,47 +517,12 @@ function hideHud() {
   setTimeout(() => { if (!hud.classList.contains('show')) hud.hidden = true; }, 300);
 }
 
-// Gravity: pick the rotation that keeps the text upright for whoever is looking,
-// even with the phone's rotation lock on. Hysteresis avoids flapping.
-let motionState = null;
-function onMotion(e) {
-  const g = e.accelerationIncludingGravity;
-  if (!g || g.x == null || !motionState) return;
-  const inv = isIOS ? -1 : 1;                  // iOS reports the opposite sign
-  let x = g.x * inv, y = g.y * inv;
-  const z = (g.z || 0) * inv;
-  const mag = Math.hypot(x, y, z) || 1;
-  if (Math.abs(z) / mag > 0.8) return;          // lying flat: no information
-  if (innerWidth > innerHeight) { motionState.candidate = null; return; } // the OS already rotated the viewport
-  const sa = (screen.orientation && screen.orientation.angle) || 0;
-  if (sa === 180) { x = -x; y = -y; }
-  const margin = 3.4; // m/s^2 (~20 degrees past the diagonal)
-  let cand = null;
-  if (Math.abs(x) > Math.abs(y) + margin) cand = x > 0 ? 90 : 270;
-  else if (Math.abs(y) > Math.abs(x) + margin) cand = y > 0 ? 0 : 180;
-  if (cand === null) return;
-  const now = performance.now();
-  if (cand !== motionState.candidate) { motionState.candidate = cand; motionState.since = now; return; }
-  if (now - motionState.since < 400 || cand === autoAngle) return;
-  autoAngle = cand;
-  updateAngle();
-  layout();
-}
-async function startGravity() {
-  if (!('DeviceMotionEvent' in window)) return;
-  motionState = { candidate: null, since: 0 };
-  try {
-    if (typeof DeviceMotionEvent.requestPermission === 'function') {
-      const res = await DeviceMotionEvent.requestPermission();
-      if (res !== 'granted') return;
-    }
-    addEventListener('devicemotion', onMotion);
-  } catch (e) { /* not available */ }
-}
-function stopGravity() {
-  removeEventListener('devicemotion', onMotion);
-  motionState = null;
-  autoAngle = null;
+// Motion: gravity keeps the text upright for whoever is looking (even with the
+// phone's rotation lock on), tilt moves the LED highlights, movement adds energy.
+reactive.onOrientation = (deg) => { autoAngle = deg; if (present) { updateAngle(); layout(); } };
+async function startMotion() {
+  const res = await reactive.startMotion();
+  if (res !== 'granted') autoAngle = null;
 }
 
 async function enterPresent() {
@@ -541,7 +536,7 @@ async function enterPresent() {
   updateAngle();
   updateThemeColor();
   vibrate([8, 30, 8]);
-  startGravity();
+  startMotion(); // inside the tap: iOS shows its motion permission prompt here
   try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) { /* iOS */ }
   try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) { /* unsupported or not fullscreen */ }
   updateAngle();
@@ -568,7 +563,6 @@ function exitPresent({ fromHistory = false } = {}) {
   hideHud();
   hideToast();
   releaseWakeLock();
-  stopGravity();
   try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) { /* ignore */ }
   if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
   updateAngle();
@@ -579,8 +573,8 @@ function exitPresent({ fromHistory = false } = {}) {
 addEventListener('popstate', () => { if (present) exitPresent({ fromHistory: true }); });
 document.addEventListener('fullscreenchange', () => { if (present && !document.fullscreenElement) exitPresent(); });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') { engine.start(); if (present && !wakeLock) requestWakeLock(); }
-  else engine.stop();
+  if (document.visibilityState === 'visible') { engine.start(); reactive.resume(); if (present && !wakeLock) requestWakeLock(); }
+  else { engine.stop(); reactive.suspend(); }
 });
 addEventListener('pageshow', (e) => { if (e.persisted) { engine.start(); if (present) requestWakeLock(); } });
 
@@ -768,7 +762,9 @@ boot.done.then(() => {
   requestAnimationFrame(() => { engine.setBrightness(state.text.trim() ? 1 : 0.42); });
   setTimeout(() => sheet.classList.remove('reveal'), 1200);
   fontsReady.then(() => { stripKey = ''; updateStrip(); }); // re-raster once web fonts are certain
+  if (reactive.motionSupported && !reactive.motionNeedsPermission) startMotion();
+  if (state.mic) reactive.startMic().then((ok) => { state.mic = ok; syncMic(); if (!ok) persist(); });
 });
 
 // A small handle for debugging and automated QA (not part of the UI).
-window.scrolled = { engine, state, present: () => present, renderCard };
+window.scrolled = { engine, state, reactive, present: () => present, renderCard };
