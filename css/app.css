@@ -77,7 +77,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 /* ----------------------------------------------------------------- sheet */
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
-  max-height: calc(100% - var(--sat) - 64px);
+  max-height: calc(100% - var(--sat) - 150px); /* always leave room for the preview */
   display: flex; flex-direction: column;
   padding: 6px calc(var(--sar) + 16px) calc(var(--sab) + 14px) calc(var(--sal) + 16px);
   background: var(--glass);
@@ -255,8 +255,8 @@ body.paused .hud-btn .ic-pause { display: none; }
 .toast button { color: var(--accent); font-weight: 700; margin-left: 10px; }
 
 /* ----------------------------------------------------- typing / keyboard */
-body.typing .controls, .sheet.collapsed .controls { max-height: 0 !important; opacity: 0; pointer-events: none; margin-bottom: 0; }
 .controls { max-height: 70vh; opacity: 1; margin-bottom: 14px; transition: max-height 380ms var(--ease-out), opacity 220ms, margin 380ms var(--ease-out); }
+body.typing .controls, .sheet.collapsed .controls { max-height: 0; opacity: 0; pointer-events: none; margin-bottom: 0; }
 .cta { flex: none; }
 
 /* --------------------------------------------------------- boot handoff */
