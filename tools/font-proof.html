@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8"><style>body{margin:0;background:#000}</style>
+<canvas id="c"></canvas>
+<script type="module">
+import { GLYPHS } from '/js/font5x8.js';
+const keys = Object.keys(GLYPHS);
+const cellW = 5, cellH = 8, s = 6, gap = 2, perRow = 16;
+const cw = (cellW + gap) * s, ch = (cellH + gap + 1) * s;
+const c = document.getElementById('c');
+c.width = perRow * cw + s; c.height = Math.ceil(keys.length / perRow) * ch + s;
+const ctx = c.getContext('2d');
+ctx.fillStyle = '#000'; ctx.fillRect(0,0,c.width,c.height);
+keys.forEach((k, idx) => {
+  const gx = (idx % perRow) * cw + s, gy = Math.floor(idx / perRow) * ch + s;
+  const g = GLYPHS[k];
+  for (let col = 0; col < 5; col++) for (let r = 0; r < 8; r++) {
+    const on = g[col] & (1 << r);
+    ctx.fillStyle = on ? (r === 7 ? '#ff9a3c' : '#ff3b30') : '#1c1c1c';
+    ctx.beginPath(); ctx.arc(gx + col * s + s/2, gy + r * s + s/2, s*0.42, 0, 7); ctx.fill();
+  }
+});
+document.title = 'ready';
+</script>

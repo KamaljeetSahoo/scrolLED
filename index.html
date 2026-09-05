@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>scrolLED — turn your phone into an LED sign</title>
+  <meta name="description" content="scrolLED turns your phone into a scrolling LED sign. Type a message, pick a font and colour, hold it up.">
+  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="scrolLED">
+  <meta name="format-detection" content="telephone=no">
+  <meta property="og:title" content="scrolLED">
+  <meta property="og:description" content="Turn your phone into a scrolling LED sign.">
+  <meta property="og:image" content="icons/og.png">
+  <meta property="og:type" content="website">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preload" href="fonts/Anton.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/Bungee.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="modulepreload" href="js/app.js">
+  <link rel="modulepreload" href="js/engine.js">
+  <link rel="modulepreload" href="js/raster.js">
+  <link rel="modulepreload" href="js/font5x8.js">
+  <link rel="modulepreload" href="js/boot.js">
+  <style>
+    /* Critical: paint black instantly with a tiny pulsing dot row while modules load. */
+    html, body { margin: 0; background: #000; height: 100%; overflow: hidden; }
+    #splash { position: fixed; inset: 0; display: grid; place-items: center; background: #000; z-index: 50; transition: opacity 240ms ease; }
+    #splash.out { opacity: 0; pointer-events: none; }
+    #splash .dots { display: flex; gap: 10px; }
+    #splash .dots i { width: 10px; height: 10px; border-radius: 50%; background: #ff3b1f; opacity: .12; animation: splash-pulse 900ms ease-in-out infinite; }
+    #splash .dots i:nth-child(2) { animation-delay: 90ms; } #splash .dots i:nth-child(3) { animation-delay: 180ms; }
+    #splash .dots i:nth-child(4) { animation-delay: 270ms; } #splash .dots i:nth-child(5) { animation-delay: 360ms; }
+    @keyframes splash-pulse { 0%, 100% { opacity: .12; transform: scale(.85); } 50% { opacity: 1; transform: scale(1.1); box-shadow: 0 0 14px #ff3b1f; } }
+    #nojs { position: fixed; inset: 0; display: grid; place-items: center; color: #999; font: 15px/1.5 system-ui, sans-serif; text-align: center; padding: 24px; }
+  </style>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div id="splash" aria-hidden="true"><div class="dots"><i></i><i></i><i></i><i></i><i></i></div></div>
+  <noscript><div id="nojs">scrolLED needs JavaScript to light up.</div></noscript>
+
+  <canvas id="led" aria-label="LED display"></canvas>
+
+  <header id="top" class="top">
+    <a class="brand" href="./" aria-label="scrolLED"><span id="wordmark" class="wordmark" aria-hidden="true"></span></a>
+    <div class="top-actions">
+      <button id="installBtn" class="icon-btn" type="button" aria-label="Install app" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0-4-4m4 4 4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
+      </button>
+      <button id="shareBtn" class="icon-btn" type="button" aria-label="Share this sign">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0-12-4 4m4-4 4 4M6 11v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section id="sheet" class="sheet" aria-label="Sign controls">
+    <button id="handleBtn" class="handle-btn" type="button" aria-label="Collapse or expand controls" aria-expanded="true"><span class="handle"></span></button>
+
+    <div class="field row">
+      <input id="msg" type="text" inputmode="text" enterkeyhint="done" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" maxlength="200" placeholder="Type something…" aria-label="Message">
+      <button id="clearBtn" class="clear" type="button" aria-label="Clear message" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div id="recents" class="recents row" role="list" aria-label="Recent messages" hidden></div>
+
+    <div id="controls" class="controls">
+      <div class="row">
+        <div class="label">Font</div>
+        <div id="fonts" class="chips scroll" role="radiogroup" aria-label="Font"></div>
+      </div>
+
+      <div class="row">
+        <div class="label">Colour</div>
+        <div id="colors" class="swatches scroll" role="radiogroup" aria-label="Colour"></div>
+      </div>
+
+      <div class="row speed">
+        <div class="label">Speed <span id="speedWord" class="value">Cruise</span></div>
+        <input id="speed" class="slider" type="range" min="0" max="100" step="1" aria-label="Speed">
+      </div>
+
+      <div class="row two">
+        <div>
+          <div class="label">Dot size</div>
+          <div id="sizes" class="segmented" role="radiogroup" aria-label="Dot size"></div>
+        </div>
+        <div>
+          <div class="label">Direction</div>
+          <button id="dirBtn" class="chip wide" type="button" aria-label="Scroll direction">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H4m0 0 6-6m-6 6 6 6"/></svg><span>Left</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">Feel</div>
+        <div class="chips wrap">
+          <button id="shapeBtn" class="chip toggle" type="button" aria-pressed="false"><i class="dot"></i><span>Round</span></button>
+          <button id="motionBtn" class="chip toggle" type="button" aria-pressed="false"><span>Smooth</span></button>
+          <button id="afterBtn" class="chip toggle" type="button" aria-pressed="false"><span>Afterglow</span></button>
+          <button id="glowBtn" class="chip toggle" type="button" aria-pressed="false"><span>Glow</span></button>
+        </div>
+      </div>
+    </div>
+
+    <button id="presentBtn" class="cta" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span>Present</span>
+    </button>
+  </section>
+
+  <div id="hud" class="hud" hidden>
+    <button id="exitBtn" class="hud-btn" type="button" aria-label="Exit present mode">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <button id="pauseBtn" class="hud-btn" type="button" aria-label="Pause">
+      <svg class="ic-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+      <svg class="ic-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <button id="rotateBtn" class="hud-btn" type="button" aria-label="Rotate display">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/></svg>
+    </button>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
