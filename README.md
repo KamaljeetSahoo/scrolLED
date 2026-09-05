@@ -45,8 +45,8 @@ Then open the printed URL. Service workers need `localhost` or HTTPS.
 
 The repo ships a workflow at `.github/workflows/pages.yml` that deploys on every push to `master`.
 
-1. In the repository go to **Settings → Pages**.
-2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+1. In the repository go to **Settings → Pages** (https://github.com/KamaljeetSahoo/scrolLED/settings/pages).
+2. Under **Build and deployment**, set **Source** to **GitHub Actions**. This one-time step cannot be done by the workflow itself: GitHub does not let the workflow token create the Pages site.
 3. Push to `master` (or run the workflow manually from the Actions tab).
 
 The site then lives at `https://<user>.github.io/scrolLED/`. All paths are relative, so it also works from a custom domain or the repo root.
