@@ -70,7 +70,7 @@ export class Reactive {
 
   /** Pause/resume around visibility changes. */
   suspend() { if (this.micOn) this.stopMic(true); }
-  resume() { if (this.micWanted && !this.micOn) this.startMic().catch(() => {}); }
+  async resume() { if (this.micWanted && !this.micOn) { try { await this.startMic(); } catch (e) { /* stays off */ } } return this.micOn; }
 
   // ------------------------------------------------------------------ motion
   get motionSupported() { return 'DeviceMotionEvent' in window; }

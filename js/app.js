@@ -247,7 +247,9 @@ addEventListener('orientationchange', onResize);
 if (window.visualViewport) {
   const vv = window.visualViewport;
   const onVV = () => {
-    const kb = Math.max(0, innerHeight - vv.height - vv.offsetTop);
+    // Only a focused input can mean a keyboard; a pinch-zoom shrinks the visual viewport too.
+    const typing = document.activeElement === msg && (vv.scale || 1) <= 1.01;
+    const kb = typing ? Math.max(0, innerHeight - vv.height - vv.offsetTop) : 0;
     root.style.setProperty('--kb', `${Math.round(kb)}px`);
     if (kb > 0) window.scrollTo(0, 0);
   };
@@ -538,7 +540,9 @@ async function enterPresent() {
   vibrate([8, 30, 8]);
   startMotion(); // inside the tap: iOS shows its motion permission prompt here
   try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) { /* iOS */ }
+  if (!present) return; // backed out while the browser was going full screen
   try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) { /* unsupported or not fullscreen */ }
+  if (!present) return;
   updateAngle();
   layout();
   requestWakeLock();
@@ -571,9 +575,10 @@ function exitPresent({ fromHistory = false } = {}) {
 }
 
 addEventListener('popstate', () => { if (present) exitPresent({ fromHistory: true }); });
+if (history.state && history.state.present) { try { history.replaceState(null, ''); } catch (e) { /* ignore */ } } // reloaded mid-present
 document.addEventListener('fullscreenchange', () => { if (present && !document.fullscreenElement) exitPresent(); });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') { engine.start(); reactive.resume(); if (present && !wakeLock) requestWakeLock(); }
+  if (document.visibilityState === 'visible') { engine.start(); reactive.resume().then(syncMic); if (present && !wakeLock) requestWakeLock(); }
   else { engine.stop(); reactive.suspend(); }
 });
 addEventListener('pageshow', (e) => { if (e.persisted) { engine.start(); if (present) requestWakeLock(); } });
@@ -766,7 +771,8 @@ boot.done.then(() => {
   setTimeout(() => sheet.classList.remove('reveal'), 1200);
   fontsReady.then(() => { stripKey = ''; updateStrip(); }); // re-raster once web fonts are certain
   if (reactive.motionSupported && !reactive.motionNeedsPermission) startMotion();
-  if (state.mic) reactive.startMic().then((ok) => { state.mic = ok; syncMic(); if (!ok) persist(); });
+  // The microphone is never opened without a tap: Beat starts off on every launch.
+  state.mic = false; syncMic();
 });
 
 // A small handle for debugging and automated QA (not part of the UI).

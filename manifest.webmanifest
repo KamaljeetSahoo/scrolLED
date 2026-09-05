@@ -2,7 +2,6 @@
   "name": "scrolLED",
   "short_name": "scrolLED",
   "description": "Turn your phone into a scrolling LED sign. Type a message, pick a font and colour, hold it up.",
-  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
