@@ -207,7 +207,7 @@ export class Engine {
   setAngle(deg, immediate = false) {
     if (immediate) { this.angle = deg; this.angleCur = deg; return; }
     const d = ((deg - this.angleCur) % 360 + 540) % 360 - 180; // shortest way round
-    this.angle = this.angleCur + d;
+    this.angle = deg + 360 * Math.round((this.angleCur + d - deg) / 360); // exact multiple of 360 away from deg
   }
   setSpeed(v) { this.speed = v; }
   setDirection(dir) { const d = dir < 0 ? -1 : 1; if (d !== this.direction) { this.direction = d; this.dwell = 'enter'; } }
