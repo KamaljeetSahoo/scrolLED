@@ -224,8 +224,11 @@ export class Engine {
   setOverride(fn) { this.override = fn; this.dirty = true; }
   /** Live inputs from the senses: energy 0..1, beat impulse 0..1, physical up in screen coords (y down). */
   setReactive(pulse, beat, up) {
-    if (Math.abs(pulse - this.pulse) > 0.003 || Math.abs(beat - this.beat) > 0.003 || Math.abs(up[0] - this.up[0]) + Math.abs(up[1] - this.up[1]) > 0.004) this.dirty = true;
-    this.pulse = pulse; this.beat = beat; this.up = [up[0], up[1]];
+    const q = (v) => Math.round(v * 50) / 50; // quantise so sensor noise does not force redraws
+    pulse = q(pulse); beat = q(beat);
+    const ux = q(up[0]), uy = q(up[1]);
+    if (pulse !== this.pulse || beat !== this.beat || ux !== this.up[0] || uy !== this.up[1]) this.dirty = true;
+    this.pulse = pulse; this.beat = beat; this.up = [ux, uy];
   }
   resetPosition() { this.enterFromEdge = true; this.dwell = 'enter'; this.flingVel = null; }
   /** Brief power dip, like a controller re-configuring. */
@@ -378,7 +381,7 @@ export class Engine {
       } else if (this.paused) {
         // hold still
       } else if (this.speed <= 0 && fits) {
-        this.X = damp(this.X, Xc, 8, dt);
+        this.X = Math.abs(this.X - Xc) < 0.002 ? Xc : damp(this.X, Xc, 8, dt);
         this.dwell = 'enter';
       } else if (fits) {
         this._dwellStep(dt, v, dir, wl, cols, Xc, kScale, P);
@@ -520,7 +523,8 @@ export class Engine {
     gl.useProgram(prog);
     const quad = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, quad);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    this.quadData = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+    gl.bufferData(gl.ARRAY_BUFFER, this.quadData, gl.DYNAMIC_DRAW);
     const aPos = gl.getAttribLocation(prog, 'aPos');
     gl.enableVertexAttribArray(aPos);
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
@@ -559,6 +563,18 @@ export class Engine {
     gl.uniform1f(u.uShape, this.shape);
     gl.uniform1f(u.uBright, this.brightCur);
     gl.uniform1f(u.uPresent, this.presentCur);
+    // Only the panel (plus a margin for glow) needs shading; everything else is cleared black.
+    const rc = this.rectCur, dpr = this.dpr;
+    const cx = (rc.x + rc.w / 2) * dpr, cy = (rc.y + rc.h / 2) * dpr;
+    const th = this.angleCur * Math.PI / 180, ca = Math.abs(Math.cos(th)), sa = Math.abs(Math.sin(th));
+    const hw = (this.lw * dpr) / 2 + PX * 1.5, hh = (this.lh * dpr) / 2 + PX * 1.5;
+    const bw = hw * ca + hh * sa, bh = hw * sa + hh * ca;
+    const W = this.canvas.width, H = this.canvas.height;
+    const x0 = clamp((cx - bw) / W * 2 - 1, -1, 1), x1 = clamp((cx + bw) / W * 2 - 1, -1, 1);
+    const y0 = clamp(1 - (cy + bh) / H * 2, -1, 1), y1 = clamp(1 - (cy - bh) / H * 2, -1, 1);
+    const qd = this.quadData;
+    qd[0] = x0; qd[1] = y0; qd[2] = x1; qd[3] = y0; qd[4] = x0; qd[5] = y1; qd[6] = x1; qd[7] = y1;
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, qd);
     gl.uniform1f(u.uTime, this.time);
     gl.uniform1f(u.uPulse, this.pulse);
     gl.uniform1f(u.uBeat, this.beat);

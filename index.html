@@ -70,7 +70,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </div>
-    <div id="recents" class="recents row" role="list" aria-label="Recent messages" hidden></div>
+    <div id="recents" class="recents row" role="group" aria-label="Recent messages" hidden></div>
 
     <div id="controls" class="controls">
       <div class="row">
@@ -95,7 +95,7 @@
         </div>
         <div>
           <div class="label">Direction</div>
-          <button id="dirBtn" class="chip wide" type="button" aria-label="Scroll direction">
+          <button id="dirBtn" class="chip wide" type="button">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H4m0 0 6-6m-6 6 6 6"/></svg><span>Left</span>
           </button>
         </div>
@@ -104,8 +104,8 @@
       <div class="row">
         <div class="label">Feel</div>
         <div class="chips wrap">
-          <button id="shapeBtn" class="chip toggle" type="button" aria-pressed="false"><i class="dot"></i><span>Round</span></button>
-          <button id="motionBtn" class="chip toggle" type="button" aria-pressed="false"><span>Smooth</span></button>
+          <button id="shapeBtn" class="chip toggle" type="button"><i class="dot"></i><span>Round</span></button>
+          <button id="motionBtn" class="chip toggle" type="button"><span>Smooth</span></button>
           <button id="afterBtn" class="chip toggle" type="button" aria-pressed="false"><span>Afterglow</span></button>
           <button id="glowBtn" class="chip toggle" type="button" aria-pressed="false"><span>Glow</span></button>
           <button id="beatBtn" class="chip toggle" type="button" aria-pressed="false" aria-label="React to music">
@@ -124,7 +124,7 @@
     <button id="exitBtn" class="hud-btn" type="button" aria-label="Exit present mode">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
     </button>
-    <button id="pauseBtn" class="hud-btn" type="button" aria-label="Pause">
+    <button id="pauseBtn" class="hud-btn" type="button" aria-label="Pause" aria-pressed="false">
       <svg class="ic-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
       <svg class="ic-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
     </button>

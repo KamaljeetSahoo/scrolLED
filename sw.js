@@ -1,7 +1,7 @@
 /* scrolLED service worker: precache the app shell so it launches offline, and
    pick up new versions in the background (the page offers a refresh). Bump
    VERSION whenever any precached file changes. */
-const VERSION = 'v1.1.0';
+const VERSION = 'v1.2.0';
 const CACHE = `scrolled-${VERSION}`;
 const SHELL = [
   './',
@@ -54,17 +54,15 @@ self.addEventListener('fetch', (event) => {
     const cache = await caches.open(CACHE);
     // Navigations: serve the shell from cache first so the app opens instantly
     // and offline; refresh the copy in the background.
+    // Precached files are served as one consistent version; a new version arrives
+    // atomically through a new service worker (bump VERSION), never piecemeal.
     if (req.mode === 'navigate') {
       const cached = await cache.match('./index.html');
-      const network = fetch(req).then((res) => { if (res.ok) cache.put('./index.html', res.clone()); return res; }).catch(() => null);
-      return cached || (await network) || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+      if (cached) return cached;
+      try { return await fetch(req); } catch (e) { return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } }); }
     }
     const cached = await cache.match(req, { ignoreSearch: true });
-    if (cached) {
-      // stale-while-revalidate for anything we precached
-      event.waitUntil(fetch(req).then((res) => { if (res.ok) return cache.put(req, res.clone()); }).catch(() => {}));
-      return cached;
-    }
+    if (cached) return cached;
     try {
       const res = await fetch(req);
       if (res.ok && (url.pathname.endsWith('.png') || url.pathname.endsWith('.woff2'))) cache.put(req, res.clone());

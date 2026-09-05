@@ -84,8 +84,9 @@ export function superSample(rows) { return rows <= 20 ? 8 : 4; }
  * @returns {Strip}
  */
 export function rasterize(text, fontId, rows) {
-  const font = FONT_BY_ID[fontId] || FONTS[0];
-  const ss = superSample(rows);
+  const font = Object.hasOwn(FONT_BY_ID, fontId) ? FONT_BY_ID[fontId] : FONTS[0];
+  // Long messages get lighter supersampling so re-rasterising while typing stays quick.
+  const ss = Math.min(superSample(rows), text.length > 60 ? 4 : 8);
   const H = rows * ss;
   const plan = font.kind === 'bitmap' ? planBitmap(text, font, rows, ss) : planText(text, font, rows, ss);
   return buildStrip(plan.draw, plan.W, H, rows, ss);

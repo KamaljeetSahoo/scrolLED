@@ -68,9 +68,16 @@ export class Reactive {
     this.micOn = false; this.level = 0; this.beat = 0;
   }
 
-  /** Pause/resume around visibility changes. */
-  suspend() { if (this.micOn) this.stopMic(true); }
-  async resume() { if (this.micWanted && !this.micOn) { try { await this.startMic(); } catch (e) { /* stays off */ } } return this.micOn; }
+  /** Pause/resume around visibility changes (mic and motion sensors). */
+  suspend() {
+    if (this.micOn) this.stopMic(true);
+    if (this.motionOn) { removeEventListener('devicemotion', this._onMotion); this.motionOn = false; this.motionPaused = true; }
+  }
+  async resume() {
+    if (this.motionPaused) { addEventListener('devicemotion', this._onMotion); this.motionOn = true; this.motionPaused = false; }
+    if (this.micWanted && !this.micOn) { try { await this.startMic(); } catch (e) { /* stays off */ } }
+    return this.micOn;
+  }
 
   // ------------------------------------------------------------------ motion
   get motionSupported() { return 'DeviceMotionEvent' in window; }

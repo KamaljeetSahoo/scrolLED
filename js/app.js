@@ -49,14 +49,23 @@ function loadState() {
     s.text = (q.get('text') || q.get('title') || '').trim();
     try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* ignore */ }
   }
-  if (!FONT_BY_ID[s.font]) s.font = DEFAULTS.font;
-  if (!COLOR_BY_ID[s.color]) s.color = DEFAULTS.color;
+  return sanitize(s);
+}
+const clipText = (t) => Array.from(String(t == null ? '' : t)).slice(0, 200).join(''); // by code point, never splitting an emoji
+function sanitize(s) {
+  if (!Object.hasOwn(FONT_BY_ID, s.font)) s.font = DEFAULTS.font;
+  if (!Object.hasOwn(COLOR_BY_ID, s.color)) s.color = DEFAULTS.color;
   if (!ROW_OPTIONS.includes(+s.rows)) s.rows = DEFAULTS.rows;
   s.rows = +s.rows;
-  s.speed = Math.min(100, Math.max(0, +s.speed || 0));
+  s.speed = Math.min(100, Math.max(0, Math.round(+s.speed) || 0));
   s.glow = Math.min(2, Math.max(0, Math.round(+s.glow) || 0));
-  if (!Array.isArray(s.recents)) s.recents = [];
-  s.text = String(s.text || '').slice(0, 200);
+  s.dir = s.dir === 'right' ? 'right' : 'left';
+  s.shape = s.shape === 'square' ? 'square' : 'round';
+  s.motion = s.motion === 'stepped' ? 'stepped' : 'smooth';
+  s.afterglow = !!s.afterglow;
+  s.mic = false;
+  s.recents = (Array.isArray(s.recents) ? s.recents : []).filter((x) => typeof x === 'string' && x.trim()).map(clipText).slice(0, 8);
+  s.text = clipText(s.text);
   return s;
 }
 function fromHash(hash) {
@@ -142,6 +151,9 @@ engine.start();
 let firstFrame = false;
 let lastFrameAt = performance.now();
 let lastBeatVar = 0;
+let layoutFrames = 0;
+// Layout reads the sheet's position; only do that while something is moving.
+function requestLayout(frames = 45) { layoutFrames = Math.max(layoutFrames, frames); }
 engine.onFrame = () => {
   if (!firstFrame) { firstFrame = true; splash.classList.add('out'); setTimeout(() => splash.remove(), 400); }
   const now = performance.now();
@@ -151,8 +163,11 @@ engine.onFrame = () => {
   engine.setReactive(reactive.pulse, reactive.beat, reactive.up);
   const b = Math.max(reactive.beat, reactive.pulse * 0.5);
   if (!reducedMotion && Math.abs(b - lastBeatVar) > 0.02) { lastBeatVar = b; root.style.setProperty('--beat', b.toFixed(3)); }
-  if (!booting) layout();
+  if (!booting && layoutFrames > 0) { layoutFrames--; layout(); }
 };
+const controlsEl = $('#controls');
+sheet.addEventListener('transitionend', () => requestLayout(3));
+controlsEl.addEventListener('transitionend', () => requestLayout(3));
 
 let strip = null;
 let stripKey = '';
@@ -231,16 +246,22 @@ function layout() {
   const h = Math.max(40, Math.min(avail.h, avail.w / 2.1));
   const y = avail.y + (avail.h - h) / 2;
   engine.setRect(avail.x, y, avail.w, h);
+  controlsEl.classList.toggle('scrolls', controlsEl.scrollHeight > controlsEl.clientHeight + 4);
 }
 
 function updateAngle() {
-  engine.setAngle(present ? presentAngle() : 0);
+  const angle = present ? presentAngle() : 0;
+  engine.setAngle(angle);
+  // The overlay and toast sit on the sign's physical bottom/top edge, so they rotate with it.
+  const rotated = (Math.round(angle / 90) % 2) !== 0;
+  body.style.setProperty('--rot', `${angle}deg`);
+  body.style.setProperty('--hud-l', `${rotated ? innerWidth : innerHeight}px`);
 }
 
 function onResize() {
   engine.resize();
   updateAngle();
-  if (!booting) layout();
+  requestLayout();
 }
 addEventListener('resize', onResize);
 addEventListener('orientationchange', onResize);
@@ -252,6 +273,7 @@ if (window.visualViewport) {
     const kb = typing ? Math.max(0, innerHeight - vv.height - vv.offsetTop) : 0;
     root.style.setProperty('--kb', `${Math.round(kb)}px`);
     if (kb > 0) window.scrollTo(0, 0);
+    requestLayout();
   };
   vv.addEventListener('resize', onVV);
   vv.addEventListener('scroll', onVV);
@@ -291,6 +313,27 @@ function buildWordmark() {
   el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="scrolLED">${circles.join('')}</svg>`;
 }
 
+// Custom radio groups: one tab stop, arrows move the selection.
+function makeRadioGroup(container, select) {
+  container.addEventListener('keydown', (e) => {
+    const items = [...container.querySelectorAll('[role="radio"]')];
+    const i = items.indexOf(document.activeElement);
+    if (i < 0) return;
+    let j = -1;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') j = (i + 1) % items.length;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') j = (i - 1 + items.length) % items.length;
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = items.length - 1;
+    if (j < 0) return;
+    e.preventDefault();
+    items[j].focus();
+    select(items[j]);
+  });
+}
+function rove(container) {
+  for (const b of container.querySelectorAll('[role="radio"]')) b.tabIndex = b.getAttribute('aria-checked') === 'true' ? 0 : -1;
+}
+
 function buildFonts() {
   fontsEl.innerHTML = '';
   for (const f of FONTS) {
@@ -301,9 +344,12 @@ function buildFonts() {
     b.addEventListener('click', () => { if (state.font === f.id) return; state.font = f.id; syncFonts(); applyEngine({ refit: true }); persist(); vibrate(6); });
     fontsEl.appendChild(b);
   }
+  makeRadioGroup(fontsEl, (b) => b.click());
+  rove(fontsEl);
 }
 function syncFonts() {
   for (const b of fontsEl.children) b.setAttribute('aria-checked', String(b.dataset.id === state.font));
+  rove(fontsEl);
   const active = fontsEl.querySelector('[aria-checked="true"]');
   if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reducedMotion ? 'auto' : 'smooth' });
 }
@@ -320,9 +366,12 @@ function buildColors() {
     b.addEventListener('click', () => { if (state.color === c.id) return; state.color = c.id; syncColors(); setAccent(c.id); applyEngine(); persist(); vibrate(6); });
     colorsEl.appendChild(b);
   }
+  makeRadioGroup(colorsEl, (b) => b.click());
+  rove(colorsEl);
 }
 function syncColors() {
   for (const b of colorsEl.children) b.setAttribute('aria-checked', String(b.dataset.id === state.color));
+  rove(colorsEl);
 }
 
 function buildSizes() {
@@ -335,18 +384,21 @@ function buildSizes() {
     b.addEventListener('click', () => { if (state.rows === sz.rows) return; state.rows = sz.rows; syncSizes(); applyEngine({ refit: true }); persist(); vibrate(6); });
     sizesEl.appendChild(b);
   });
+  makeRadioGroup(sizesEl, (b) => b.click());
   syncSizes();
 }
 function syncSizes() {
   const i = Math.max(0, SIZES.findIndex(s => s.rows === state.rows));
   sizesEl.style.setProperty('--i', i);
   [...sizesEl.children].forEach((b, j) => b.setAttribute('aria-checked', String(i === j)));
+  rove(sizesEl);
 }
 
 function syncSpeed() {
   speedEl.value = state.speed;
   speedEl.style.setProperty('--p', `${state.speed}%`);
   speedWord.textContent = speedName(state.speed);
+  speedEl.setAttribute('aria-valuetext', speedName(state.speed));
 }
 let lastSpeedTick = -1;
 speedEl.addEventListener('input', () => {
@@ -358,11 +410,12 @@ speedEl.addEventListener('input', () => {
 function syncToggles() {
   dirBtn.querySelector('span').textContent = state.dir === 'right' ? 'Right' : 'Left';
   dirBtn.querySelector('svg').style.transform = state.dir === 'right' ? 'scaleX(-1)' : '';
+  dirBtn.setAttribute('aria-label', `Direction: ${state.dir}. Tap to switch`);
   shapeBtn.classList.toggle('square', state.shape === 'square');
   shapeBtn.querySelector('span').textContent = state.shape === 'square' ? 'Square' : 'Round';
-  shapeBtn.setAttribute('aria-pressed', String(state.shape === 'square'));
+  shapeBtn.setAttribute('aria-label', `LED shape: ${state.shape}. Tap to switch`);
   motionBtn.querySelector('span').textContent = state.motion === 'stepped' ? 'Stepped' : 'Smooth';
-  motionBtn.setAttribute('aria-pressed', String(state.motion === 'stepped'));
+  motionBtn.setAttribute('aria-label', `Motion: ${state.motion}. Tap to switch`);
   afterBtn.setAttribute('aria-pressed', String(!!state.afterglow));
   glowBtn.querySelector('span').textContent = GLOW_LABELS[state.glow];
   glowBtn.setAttribute('aria-pressed', String(state.glow > 0));
@@ -396,6 +449,7 @@ function setCollapsed(v) {
   collapsed = v;
   sheet.classList.toggle('collapsed', v);
   handleBtn.setAttribute('aria-expanded', String(!v));
+  requestLayout();
 }
 let handlePtr = null;
 handleBtn.addEventListener('pointerdown', (e) => { handlePtr = { y: e.clientY, t: performance.now() }; });
@@ -421,8 +475,8 @@ function scheduleStrip() {
   stripTimer = setTimeout(updateStrip, 60);
 }
 msg.addEventListener('input', () => { state.text = msg.value; syncMsg(); scheduleStrip(); persist(); });
-msg.addEventListener('focus', () => { body.classList.add('typing'); });
-msg.addEventListener('blur', () => { body.classList.remove('typing'); root.style.setProperty('--kb', '0px'); commitRecent(); });
+msg.addEventListener('focus', () => { body.classList.add('typing'); requestLayout(); });
+msg.addEventListener('blur', () => { body.classList.remove('typing'); root.style.setProperty('--kb', '0px'); commitRecent(); requestLayout(); });
 msg.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); msg.blur(); } });
 clearBtn.addEventListener('click', () => { msg.value = ''; state.text = ''; syncMsg(); updateStrip(); persist(); msg.focus(); });
 
@@ -439,7 +493,7 @@ function renderRecents() {
   recentsEl.innerHTML = '';
   for (const t of items) {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'chip'; b.setAttribute('role', 'listitem'); b.title = t;
+    b.type = 'button'; b.className = 'chip'; b.title = t;
     const span = document.createElement('span'); span.textContent = t; b.appendChild(span);
     b.addEventListener('click', () => { msg.value = t; state.text = t; syncMsg(); updateStrip(); commitRecent(); vibrate(6); });
     recentsEl.appendChild(b);
@@ -534,8 +588,9 @@ async function enterPresent() {
   body.classList.add('present');
   try { history.pushState({ present: true }, ''); } catch (e) { /* ignore */ }
   engine.setPresent(1);
-  layout();
   updateAngle();
+  layout();
+  requestLayout();
   updateThemeColor();
   vibrate([8, 30, 8]);
   startMotion(); // inside the tap: iOS shows its motion permission prompt here
@@ -572,9 +627,19 @@ function exitPresent({ fromHistory = false } = {}) {
   updateAngle();
   updateThemeColor();
   layout();
+  requestLayout();
 }
 
 addEventListener('popstate', () => { if (present) exitPresent({ fromHistory: true }); });
+addEventListener('hashchange', () => {
+  const h = toHash(state);
+  if (location.hash === h) return; // our own replaceState
+  Object.assign(state, fromHash(location.hash));
+  sanitize(state);
+  msg.value = state.text; syncMsg(); syncFonts(); syncColors(); syncSizes(); syncSpeed(); syncToggles(); setAccent(state.color);
+  applyEngine({ refit: true });
+  persist();
+});
 if (history.state && history.state.present) { try { history.replaceState(null, ''); } catch (e) { /* ignore */ } } // reloaded mid-present
 document.addEventListener('fullscreenchange', () => { if (present && !document.fullscreenElement) exitPresent(); });
 document.addEventListener('visibilitychange', () => {
@@ -595,6 +660,9 @@ $('#pauseBtn').addEventListener('click', () => { togglePause(); showHud(); });
 function togglePause() {
   engine.paused = !engine.paused;
   body.classList.toggle('paused', engine.paused);
+  const pb = $('#pauseBtn');
+  pb.setAttribute('aria-pressed', String(engine.paused));
+  pb.setAttribute('aria-label', engine.paused ? 'Play' : 'Pause');
   vibrate(engine.paused ? 20 : [10, 30, 10]);
 }
 
@@ -612,18 +680,22 @@ addEventListener('keydown', (e) => {
 // ------------------------------------------------------------------- toast
 let toastTimer = 0;
 function toast(text, ms = 2200, action) {
-  toastEl.innerHTML = '';
-  toastEl.append(document.createTextNode(text));
-  if (action) {
-    const b = document.createElement('button'); b.type = 'button'; b.textContent = action.label;
-    b.addEventListener('click', () => { hideToast(); action.onClick(); });
-    toastEl.appendChild(b);
-  }
   toastEl.hidden = false;
-  requestAnimationFrame(() => toastEl.classList.add('show'));
+  toastEl.innerHTML = '';
+  requestAnimationFrame(() => {
+    // populate after the live region is visible so screen readers announce it
+    toastEl.append(document.createTextNode(text));
+    if (action) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = action.label;
+      b.addEventListener('click', (e) => { e.stopPropagation(); hideToast(); action.onClick(); });
+      toastEl.appendChild(b);
+    }
+    toastEl.classList.add('show');
+  });
   clearTimeout(toastTimer);
   if (ms > 0) toastTimer = setTimeout(hideToast, ms);
 }
+toastEl.addEventListener('click', () => hideToast());
 function hideToast() {
   toastEl.classList.remove('show');
   setTimeout(() => { if (!toastEl.classList.contains('show')) toastEl.hidden = true; }, 300);
@@ -770,6 +842,8 @@ boot.done.then(() => {
   requestAnimationFrame(() => { engine.setBrightness(state.text.trim() ? 1 : 0.42); });
   setTimeout(() => sheet.classList.remove('reveal'), 1200);
   fontsReady.then(() => { stripKey = ''; updateStrip(); }); // re-raster once web fonts are certain
+  if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => { stripKey = ''; updateStrip(); });
+  requestLayout(90);
   if (reactive.motionSupported && !reactive.motionNeedsPermission) startMotion();
   // The microphone is never opened without a tap: Beat starts off on every launch.
   state.mic = false; syncMic();

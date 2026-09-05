@@ -16,8 +16,8 @@
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.14);
   --fg: #f5f5f7;
-  --fg-dim: rgba(245, 245, 247, 0.56);
-  --fg-faint: rgba(245, 245, 247, 0.34);
+  --fg-dim: rgba(245, 245, 247, 0.66);
+  --fg-faint: rgba(245, 245, 247, 0.52);
   --chip: rgba(255, 255, 255, 0.055);
   --chip-hover: rgba(255, 255, 255, 0.09);
   --radius: 28px;
@@ -53,7 +53,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 
 /* ---------------------------------------------------------------- header */
 .top {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 5;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 5; visibility: visible;
   display: flex; align-items: center; justify-content: space-between;
   padding: calc(var(--sat) + 12px) calc(var(--sar) + 16px) 0 calc(var(--sal) + 18px);
   transition: opacity 320ms var(--ease-out), transform var(--dur) var(--ease-out);
@@ -87,7 +87,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   border-radius: var(--radius) var(--radius) 0 0;
   box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.55), 0 -1px 0 rgba(255, 255, 255, 0.04) inset;
   transform: translate3d(0, calc(-1 * var(--kb)), 0);
-  transition: transform var(--dur) var(--ease-out), opacity 300ms var(--ease-out);
+  transition: transform var(--dur) var(--ease-out), opacity 300ms var(--ease-out), visibility 0s;
   will-change: transform;
   overflow: hidden;
 }
@@ -97,7 +97,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   opacity: calc(0.7 + var(--beat) * 0.9);
   transition: background 300ms;
 }
-.handle-btn { display: block; width: 100%; height: 26px; margin: 0 0 4px; flex: none; touch-action: none; cursor: grab; border-radius: 8px; }
+.handle-btn { display: block; width: 100%; height: 32px; margin: -4px 0 2px; flex: none; touch-action: none; cursor: grab; border-radius: 8px; }
 .handle-btn:focus-visible { outline-offset: -2px; }
 .handle { display: block; width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong); margin: 6px auto 0; transition: background 200ms, width 200ms; }
 .handle-btn:active .handle { background: rgba(255, 255, 255, 0.3); width: 48px; }
@@ -116,7 +116,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .field { position: relative; }
 #msg {
   width: 100%; height: 54px; padding: 0 48px 0 18px;
-  font: 600 18px/1 inherit; font-family: inherit; color: var(--fg);
+  font-family: inherit; font-size: 18px; font-weight: 600; line-height: 1; color: var(--fg);
   background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line); border-radius: 18px;
   outline: none; -webkit-appearance: none; appearance: none; user-select: text; -webkit-user-select: text;
   caret-color: var(--accent);
@@ -126,7 +126,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 #msg:focus { border-color: rgb(var(--accent-rgb) / 0.7); background: rgba(255, 255, 255, 0.09); box-shadow: 0 0 0 4px rgb(var(--accent-rgb) / 0.16); }
 .clear {
   position: absolute; right: 10px; top: 50%; translate: 0 -50%;
-  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
   color: var(--fg-dim); background: rgba(255, 255, 255, 0.08);
   transition: transform var(--dur-fast) var(--ease-spring), background 200ms;
 }
@@ -135,7 +135,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 
 .recents { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-top: -4px; padding: 0 2px 2px; mask-image: linear-gradient(90deg, #000 92%, transparent); -webkit-mask-image: linear-gradient(90deg, #000 92%, transparent); }
 .recents::-webkit-scrollbar { display: none; }
-.recents .chip { height: 32px; font-size: 13px; padding: 0 12px; color: var(--fg-dim); max-width: 46vw; }
+.recents .chip { height: 36px; font-size: 13px; padding: 0 12px; color: var(--fg-dim); max-width: 46vw; }
 .recents .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* chips */
@@ -169,10 +169,10 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .chip.sans { font-weight: 800; }
 
 /* swatches */
-.swatches { display: flex; gap: 12px; align-items: center; overflow-x: auto; scrollbar-width: none; padding: 6px 4px; margin: -6px -4px; }
+.swatches { display: flex; gap: 10px; align-items: center; overflow-x: auto; scrollbar-width: none; padding: 6px 4px; margin: -6px -4px; }
 .swatches::-webkit-scrollbar { display: none; }
 .swatch {
-  flex: none; width: 34px; height: 34px; border-radius: 50%;
+  flex: none; width: 40px; height: 40px; border-radius: 50%;
   background: var(--c);
   box-shadow: 0 0 0 2px transparent, 0 0 0 4px transparent, 0 4px 14px rgb(var(--c-rgb) / 0.35);
   position: relative;
@@ -221,20 +221,22 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .cta svg { fill: currentColor; stroke: none; width: 20px; height: 20px; }
 
 /* ------------------------------------------------------------- present mode */
-body.present .sheet { transform: translate3d(0, 110%, 0); opacity: 0.6; pointer-events: none; }
-body.present .top { opacity: 0; transform: translateY(-16px); pointer-events: none; }
+body.present .sheet { transform: translate3d(0, 110%, 0); opacity: 0.6; pointer-events: none; visibility: hidden; transition-delay: 0s, 0s, var(--dur); }
+body.present .top { opacity: 0; transform: translateY(-16px); pointer-events: none; visibility: hidden; transition: opacity 320ms var(--ease-out), transform var(--dur) var(--ease-out), visibility 0s var(--dur); }
 
 .hud {
-  position: fixed; left: 50%; bottom: calc(var(--sab) + 22px); z-index: 8; translate: -50% 0;
+  /* Anchored to the physical bottom edge of the sign: rotate with it, then push out by --hud-r. */
+  --hud-r: calc(var(--hud-l, 100vh) / 2 - var(--sab) - 58px);
+  position: fixed; left: 50%; top: 50%; z-index: 8;
   display: flex; gap: 10px; padding: 8px; border-radius: 999px;
   background: rgba(20, 20, 22, 0.66); border: 1px solid var(--line);
   -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-  opacity: 0; transform: translateY(14px) scale(0.96);
+  opacity: 0; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) translateY(calc(var(--hud-r) + 14px)) scale(0.96);
   transition: opacity 240ms var(--ease-out), transform 320ms var(--ease-spring);
   pointer-events: none;
 }
-.hud.show { opacity: 1; transform: none; pointer-events: auto; }
+.hud.show { opacity: 1; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) translateY(var(--hud-r)); pointer-events: auto; }
 .hud-btn { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: var(--fg); background: rgba(255, 255, 255, 0.08); transition: transform var(--dur-fast) var(--ease-spring), background 200ms; }
 .hud-btn:active { transform: scale(0.9); background: rgba(255, 255, 255, 0.16); }
 .hud-btn .ic-play { display: none; }
@@ -255,13 +257,17 @@ body.paused .hud-btn .ic-pause { display: none; }
   font-size: 14px; font-weight: 500; text-align: center;
   opacity: 0; transform: translateY(-10px);
   transition: opacity 220ms var(--ease-out), transform 320ms var(--ease-spring);
+  user-select: text; -webkit-user-select: text;
 }
 .toast.show { opacity: 1; transform: none; }
+body.present .toast { top: 50%; translate: -50% -50%; --hud-r: calc(var(--hud-l, 100vh) / 2 - var(--sat) - 44px); transform: rotate(var(--rot, 0deg)) translateY(calc(-1 * var(--hud-r) - 10px)); }
+body.present .toast.show { transform: rotate(var(--rot, 0deg)) translateY(calc(-1 * var(--hud-r))); }
 .toast button { color: var(--accent); font-weight: 700; margin-left: 10px; }
 
 /* ----------------------------------------------------- typing / keyboard */
-.controls { max-height: 70vh; opacity: 1; margin-bottom: 14px; transition: max-height 380ms var(--ease-out), opacity 220ms, margin 380ms var(--ease-out); }
-body.typing .controls, .sheet.collapsed .controls { max-height: 0; opacity: 0; pointer-events: none; margin-bottom: 0; }
+.controls { max-height: 70vh; opacity: 1; margin-bottom: 14px; visibility: visible; transition: max-height 380ms var(--ease-out), opacity 220ms, margin 380ms var(--ease-out), visibility 0s; }
+body.typing .controls, .sheet.collapsed .controls { max-height: 0; opacity: 0; pointer-events: none; margin-bottom: 0; visibility: hidden; transition-delay: 0s, 0s, 0s, 380ms; }
+.controls.scrolls { -webkit-mask-image: linear-gradient(#000 calc(100% - 36px), transparent); mask-image: linear-gradient(#000 calc(100% - 36px), transparent); }
 .cta { flex: none; }
 
 /* --------------------------------------------------------- boot handoff */
@@ -286,7 +292,7 @@ body.booting .top { opacity: 0; }
   }
   .sheet::before { border-radius: var(--radius) 0 0 0; }
   .controls { max-height: none; }
-  body.typing .controls { max-height: none; opacity: 1; pointer-events: auto; margin-bottom: 14px; }
+  body.typing .controls, .sheet.collapsed .controls { max-height: none; opacity: 1; pointer-events: auto; visibility: visible; margin-bottom: 14px; }
   .handle-btn { display: none; }
   body.present .sheet { transform: translate3d(110%, 0, 0); }
   .top { right: auto; width: calc(100% - min(420px, 46vw)); }
