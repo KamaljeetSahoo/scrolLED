@@ -184,8 +184,8 @@ function updateStrip() {
 function applyEngine({ refit = false } = {}) {
   const col = COLOR_BY_ID[state.color];
   engine.setRows(state.rows);
-  engine.setTint(hexToRgb(col.rainbow ? '#ffffff' : col.hex));
-  engine.setRainbow(!!col.rainbow);
+  engine.setTint(hexToRgb(col.rainbow && engine.isWebGL ? '#ffffff' : col.hex));
+  engine.setRainbow(!!col.rainbow && engine.isWebGL);
   engine.setSpeed(speedToUnits(state.speed));
   engine.setDirection(state.dir === 'right' ? 1 : -1);
   engine.setShape(state.shape);
@@ -586,6 +586,7 @@ async function enterPresent() {
   present = true;
   msg.blur();
   body.classList.add('present');
+  sheet.inert = true; topBar.inert = true;
   try { history.pushState({ present: true }, ''); } catch (e) { /* ignore */ }
   engine.setPresent(1);
   updateAngle();
@@ -619,6 +620,7 @@ function exitPresent({ fromHistory = false } = {}) {
   engine.paused = false;
   engine.setPresent(0);
   body.classList.remove('present', 'paused');
+  sheet.inert = false; topBar.inert = false;
   hideHud();
   hideToast();
   releaseWakeLock();
@@ -712,8 +714,8 @@ async function renderCard(size = 1080) {
   const e = cardEngine;
   const col = COLOR_BY_ID[state.color];
   e.setRows(state.rows);
-  e.setTint(hexToRgb(col.rainbow ? '#ffffff' : col.hex), true);
-  e.setRainbow(!!col.rainbow);
+  e.setTint(hexToRgb(col.rainbow && e.isWebGL ? '#ffffff' : col.hex), true);
+  e.setRainbow(!!col.rainbow && e.isWebGL);
   e.setShape(state.shape);
   e.setGlow(GLOW_LEVELS[state.glow]);
   e.setAfterglow(false);
