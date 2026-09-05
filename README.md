@@ -58,6 +58,8 @@ npm run check     # syntax + precache list sanity
 npm run icons     # regenerate PNG icons (needs playwright)
 npm run font      # rebuild js/font5x8.js from tools/glyphs.json
 node tools/make-screenshots.mjs http://localhost:8080/   # manifest screenshots + OG image
+node tools/qa.mjs http://localhost:8080/                 # end-to-end smoke test (boot, SW, state, present, fallback)
+node tools/audit-layout.mjs http://localhost:8080/       # layout audit across 11 phone/tablet/desktop viewports
 ```
 
 When you change any file listed in `sw.js`, bump `VERSION` there so installed apps pick up the update.

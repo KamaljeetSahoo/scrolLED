@@ -9,7 +9,8 @@
     "icons": "node tools/make-icons.mjs",
     "font": "node tools/build-font.mjs tools/glyphs.json",
     "check": "node tools/check-sw.mjs && node --check js/app.js && node --check js/engine.js && node --check js/raster.js && node --check js/boot.js && node --check sw.js",
-    "qa": "node tools/qa.mjs"
+    "qa": "node tools/qa.mjs",
+    "audit": "node tools/audit-layout.mjs"
   },
   "devDependencies": {
     "playwright": "^1.56.0"
