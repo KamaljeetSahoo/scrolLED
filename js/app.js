@@ -236,9 +236,12 @@ function layout() {
     else { const bw = Math.min(W, H / 2.2); engine.setRect((W - bw) / 2, 0, bw, H); }
     return;
   }
-  const sr = sheet.getBoundingClientRect();
   const tr = topBar.getBoundingClientRect();
   const top = Math.max(tr.bottom, 0) + 6;
+  // The preview never shrinks below this; the sheet gives way and scrolls instead.
+  const minBand = Math.min(220, Math.max(120, Math.round(W / 2.8)));
+  sheet.style.setProperty('--sheet-max', `${Math.max(180, Math.round(H - top - minBand - 14))}px`);
+  const sr = sheet.getBoundingClientRect();
   const side = sr.left > W * 0.4 && sr.top < H * 0.3; // sheet is a side panel (landscape / desktop)
   let avail;
   if (side) avail = { x: 14, y: top, w: Math.max(40, sr.left - 28), h: Math.max(40, H - top - 20) };
@@ -246,8 +249,18 @@ function layout() {
   const h = Math.max(40, Math.min(avail.h, avail.w / 2.1));
   const y = avail.y + (avail.h - h) / 2;
   engine.setRect(avail.x, y, avail.w, h);
-  controlsEl.classList.toggle('scrolls', controlsEl.scrollHeight > controlsEl.clientHeight + 4);
+  const scrolls = controlsEl.scrollHeight > controlsEl.clientHeight + 4;
+  controlsEl.classList.toggle('scrolls', scrolls);
+  sheet.classList.toggle('has-more', scrolls && controlsEl.scrollTop < 8 && !collapsed && !body.classList.contains('typing'));
+  updateScrollCues();
 }
+// Horizontal rows fade at the trailing edge while there is more to scroll.
+const hScrollers = [fontsEl, colorsEl, recentsEl, document.querySelector('.chips.feel')];
+function updateScrollCues() {
+  for (const el of hScrollers) if (el) el.classList.toggle('more', el.scrollWidth - el.clientWidth - el.scrollLeft > 6);
+}
+for (const el of hScrollers) if (el) el.addEventListener('scroll', updateScrollCues, { passive: true });
+controlsEl.addEventListener('scroll', () => { sheet.classList.toggle('has-more', controlsEl.classList.contains('scrolls') && controlsEl.scrollTop < 8); }, { passive: true });
 
 function updateAngle() {
   const angle = present ? presentAngle() : 0;
