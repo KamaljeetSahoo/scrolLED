@@ -29,5 +29,5 @@ async function shot(file, { width, height, dpr, hash, present = false, settle = 
 }
 await shot('screenshot-narrow.png', { width: 390, height: 844, dpr: 2, hash: '#m=CALL+ME+MAYBE+%E2%99%A5&c=amber' });
 await shot('screenshot-wide.png', { width: 844, height: 390, dpr: 2, hash: '#m=HELLO+WORLD&f=bungee&c=cyan', present: true });
-await shot('og.png', { width: 1200, height: 630, dpr: 1, hash: '#m=HEYhash: '#m=HI+%E2%99%A5&f=pixelbold&c=red&z=20&s=0', present: true, settle: 3200f=pixelhash: '#m=HI+%E2%99%A5&f=pixelbold&c=red&z=20&s=0', present: true, settle: 3200c=redhash: '#m=HI+%E2%99%A5&f=pixelbold&c=red&z=20&s=0', present: true, settle: 3200z=20hash: '#m=HI+%E2%99%A5&f=pixelbold&c=red&z=20&s=0', present: true, settle: 3200s=0', present: true, settle: 3500 });
+await shot('og.png', { width: 1200, height: 630, dpr: 1, hash: '#m=HEY&f=pixel&c=red&z=20&s=0', present: true, settle: 3500 });
 await browser.close();

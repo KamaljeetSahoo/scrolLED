@@ -381,7 +381,14 @@ msg.value = state.text;
 function syncMsg() {
   clearBtn.hidden = !msg.value;
 }
-msg.addEventListener('input', () => { state.text = msg.value; syncMsg(); updateStrip(); persist(); });
+// Long messages take tens of milliseconds to rasterize, so coalesce keystrokes.
+let stripTimer = 0;
+function scheduleStrip() {
+  clearTimeout(stripTimer);
+  if (state.text.length < 40) { updateStrip(); return; }
+  stripTimer = setTimeout(updateStrip, 60);
+}
+msg.addEventListener('input', () => { state.text = msg.value; syncMsg(); scheduleStrip(); persist(); });
 msg.addEventListener('focus', () => { body.classList.add('typing'); });
 msg.addEventListener('blur', () => { body.classList.remove('typing'); root.style.setProperty('--kb', '0px'); commitRecent(); });
 msg.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); msg.blur(); } });
