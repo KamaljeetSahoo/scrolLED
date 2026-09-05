@@ -124,8 +124,14 @@ void main() {
 `;
 
 export class Engine {
-  constructor(canvas) {
+  /**
+   * @param {HTMLCanvasElement} canvas
+   * @param {{width?:number,height?:number,dpr?:number}} [fixed] render at a fixed
+   *   size (for offscreen cards) instead of following the canvas's CSS size
+   */
+  constructor(canvas, fixed = null) {
     this.canvas = canvas;
+    this.fixed = fixed;
     this.dpr = 1;
     this.dprCap = 2;
     this.rows = 10;
@@ -224,6 +230,19 @@ export class Engine {
 
   get isWebGL() { return !!this.gl; }
 
+  /** Snap every eased parameter to its target and draw one frame right now. */
+  renderNow() {
+    this.rectCur = { ...this.rect };
+    this.angleCur = this.angle;
+    this.tintCur = this.tint.slice();
+    this.brightCur = this.bright;
+    this.presentCur = this.present;
+    this.speedCur = this.speed;
+    this.dirty = true;
+    this.last = performance.now() - 16;
+    this.frame(performance.now());
+  }
+
   start() {
     if (this.raf) return;
     this.last = performance.now();
@@ -233,10 +252,11 @@ export class Engine {
   stop() { if (this.raf) cancelAnimationFrame(this.raf); this.raf = 0; }
 
   resize() {
-    const cssW = this.canvas.clientWidth || 1, cssH = this.canvas.clientHeight || 1;
+    const cssW = this.fixed ? this.fixed.width : (this.canvas.clientWidth || 1);
+    const cssH = this.fixed ? this.fixed.height : (this.canvas.clientHeight || 1);
     // Cap the backing store so the fragment shader never runs over more than ~2.4 M pixels.
     const areaCap = Math.sqrt(2.4e6 / (cssW * cssH));
-    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, this.dprCap, areaCap));
+    const dpr = this.fixed ? (this.fixed.dpr || 1) : Math.max(1, Math.min(window.devicePixelRatio || 1, this.dprCap, areaCap));
     const w = Math.max(1, Math.round(cssW * dpr));
     const h = Math.max(1, Math.round(cssH * dpr));
     if (this.canvas.width !== w || this.canvas.height !== h || this.dpr !== dpr) {
@@ -424,7 +444,7 @@ export class Engine {
 
   // Adaptive resolution: if frames are consistently slow, lower the DPR cap (never raise it back).
   _pace(rawDt) {
-    if (document.visibilityState !== 'visible' || rawDt <= 0 || rawDt > 0.5) return;
+    if (this.fixed || document.visibilityState !== 'visible' || rawDt <= 0 || rawDt > 0.5) return;
     this.frameCount++; this.frameWindow += rawDt;
     if (rawDt > 0.028) this.slowFrames++;
     if (this.frameWindow >= 2) {

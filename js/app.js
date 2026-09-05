@@ -628,12 +628,72 @@ function hideToast() {
 }
 
 // ------------------------------------------------------------ share / PWA
+// Renders a square card of the current sign (used for sharing as an image).
+let cardEngine = null;
+async function renderCard(size = 1080) {
+  if (!cardEngine) {
+    const c = document.createElement('canvas');
+    cardEngine = new Engine(c, { width: size, height: size, dpr: 1 });
+  }
+  const e = cardEngine;
+  const col = COLOR_BY_ID[state.color];
+  e.setRows(state.rows);
+  e.setTint(hexToRgb(col.rainbow ? '#ffffff' : col.hex), true);
+  e.setRainbow(!!col.rainbow);
+  e.setShape(state.shape);
+  e.setGlow(GLOW_LEVELS[state.glow]);
+  e.setAfterglow(false);
+  e.setStepped(state.motion === 'stepped');
+  e.setPresent(1, true);
+  e.setBrightness(1, true);
+  e.setSpeed(0);
+  const bandH = Math.round(size / 2.4);
+  e.setRect(0, (size - bandH) / 2, size, bandH, true);
+  e.setAngle(0, true);
+  e.setStrip(strip);
+  e.paused = true;
+  e.renderNow();                 // lays out the grid (cols) for this size
+  const wl = strip ? strip.widthLED : 0;
+  e.X = wl <= e.cols ? (e.cols - wl) / 2 : 0;
+  e.renderNow();
+  // Compose: sign + a small dot-matrix wordmark, then export.
+  const out = document.createElement('canvas');
+  out.width = size; out.height = size;
+  const ctx = out.getContext('2d');
+  ctx.drawImage(e.canvas, 0, 0, size, size);
+  const step = 6, r = 2.2;
+  let x = 0;
+  ctx.globalAlpha = 0.5;
+  const startX = size - 48 * step - 40, startY = size - 8 * step - 36;
+  for (const ch of 'scrolLED') {
+    const g = GLYPHS[ch];
+    ctx.fillStyle = 'LED'.includes(ch) ? col.hex : '#f5f5f7';
+    for (let c = 0; c < 5; c++) for (let row = 0; row < 8; row++) {
+      if (g[c] & (1 << row)) { ctx.beginPath(); ctx.arc(startX + (x + c) * step + r, startY + row * step + r, r, 0, Math.PI * 2); ctx.fill(); }
+    }
+    x += 6;
+  }
+  ctx.globalAlpha = 1;
+  return new Promise((resolve) => out.toBlob(resolve, 'image/png'));
+}
+
 $('#shareBtn').addEventListener('click', async () => {
   vibrate(6);
   const url = location.origin + location.pathname + toHash(state);
   const text = state.text.trim() ? `"${state.text.trim()}" on scrolLED` : 'scrolLED: turn your phone into an LED sign';
   if (navigator.share) {
-    try { await navigator.share({ title: 'scrolLED', text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    let files;
+    try {
+      if (navigator.canShare && state.text.trim()) {
+        const blob = await renderCard();
+        if (blob) {
+          const file = new File([blob], 'scrolled.png', { type: 'image/png' });
+          if (navigator.canShare({ files: [file] })) files = [file];
+        }
+      }
+    } catch (e) { files = undefined; }
+    try { await navigator.share(files ? { files, title: 'scrolLED', text, url } : { title: 'scrolLED', text, url }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; }
   }
   try { await navigator.clipboard.writeText(url); toast('Link copied'); }
   catch (e) { toast('Copy this link: ' + url, 6000); }
@@ -711,4 +771,4 @@ boot.done.then(() => {
 });
 
 // A small handle for debugging and automated QA (not part of the UI).
-window.scrolled = { engine, state, present: () => present };
+window.scrolled = { engine, state, present: () => present, renderCard };
