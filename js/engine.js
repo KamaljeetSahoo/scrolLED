@@ -47,7 +47,7 @@ vec3 hsv(float h) {
   vec3 p = abs(fract(vec3(h) + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
   return clamp(p - 1.0, 0.0, 1.0);
 }
-float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float hash(vec2 p) { p = fract(p * vec2(0.1031, 0.1030)); p += dot(p, p.yx + 33.33); return fract((p.x + p.y) * p.x); }
 
 // Linear colour of one LED from its (decoded) texel. rgb is premultiplied by
 // coverage, so a half-covered white LED is (0.5,0.5,0.5).
@@ -184,7 +184,11 @@ export class Engine {
     this.dirty = true;
     this.slowFrames = 0; this.frameCount = 0; this.frameWindow = 0;
     this.stats = { fps: 0, frames: 0, acc: 0 };
-    if (!this._initGL()) this._init2D();
+    this.canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.stop(); }, false);
+    this.canvas.addEventListener('webglcontextrestored', () => { this.gl = null; if (this._initGL()) { this.resize(); this.dirty = true; this.start(); } }, false);
+    // Probe on a throwaway canvas: if the shader cannot compile here, the real
+    // canvas is never touched by WebGL and the 2D fallback can still claim it.
+    if (this._probeGL() && this._initGL()) { /* WebGL */ } else this._init2D();
     this.resize();
   }
 
@@ -192,15 +196,19 @@ export class Engine {
   setStrip(strip) { this.strip = strip; this.dirty = true; }
   setRows(rows) {
     if (rows === this.rows) return;
-    if (this.X !== null) this.X *= rows / this.rows; // keep the text roughly where it was
     this.rows = rows;
+    this._scaleOnCols = true; // the grid re-fits next frame: scale X instead of re-centring
     this.dirty = true;
   }
   setRect(x, y, w, h, immediate = false) {
     this.rect = { x, y, w, h };
     if (immediate) this.rectCur = { x, y, w, h };
   }
-  setAngle(deg, immediate = false) { this.angle = deg; if (immediate) this.angleCur = deg; }
+  setAngle(deg, immediate = false) {
+    if (immediate) { this.angle = deg; this.angleCur = deg; return; }
+    const d = ((deg - this.angleCur) % 360 + 540) % 360 - 180; // shortest way round
+    this.angle = this.angleCur + d;
+  }
   setSpeed(v) { this.speed = v; }
   setDirection(dir) { const d = dir < 0 ? -1 : 1; if (d !== this.direction) { this.direction = d; this.dwell = 'enter'; } }
   setStepped(v) { this.stepped = !!v; this.dirty = true; }
@@ -319,7 +327,11 @@ export class Engine {
     if (settled) PX = Math.max(2, Math.floor(PX));
     const cols = Math.max(1, Math.floor(LW / PX + 1e-6));
     if (cols !== this.cols || !this.buf || this.buf.length !== cols * rows * 4) {
-      if (this.X !== null && this.cols) this.X += (cols - this.cols) / 2; // keep text centred
+      if (this.X !== null && this.cols) {
+        if (this._scaleOnCols) this.X *= cols / this.cols;   // dot size changed: same relative position
+        else this.X += (cols - this.cols) / 2;               // panel resized: keep the text centred
+      }
+      this._scaleOnCols = false;
       this.cols = cols;
       this.buf = new Uint8ClampedArray(cols * rows * 4);
       this.lin = new Float32Array(cols * rows * 4);
@@ -369,7 +381,7 @@ export class Engine {
         this.X = damp(this.X, Xc, 8, dt);
         this.dwell = 'enter';
       } else if (fits) {
-        this._dwellStep(dt, v, dir, wl, cols, Xc, kScale);
+        this._dwellStep(dt, v, dir, wl, cols, Xc, kScale, P);
       } else {
         this.dwell = 'enter';
         if (this.stepped) {
@@ -382,7 +394,7 @@ export class Engine {
       }
       // Normalise into [cols - P, cols) so numbers stay small and the text wraps.
       this.X = cols - P + mod(this.X - (cols - P), P);
-      const Xs = this.stepped ? Math.floor(this.X) : this.X;
+      const Xs = this.stepped ? Math.round(this.X) : this.X;
       moved = Xs !== this._lastXs || prevX !== this.X;
       this._lastXs = Xs;
       // With afterglow on, lin carries last frame's trails, so it must be re-sampled every frame.
@@ -426,30 +438,33 @@ export class Engine {
   }
 
   // Short messages: slide in, hold centred, slide out, repeat.
-  _dwellStep(dt, v, dir, wl, cols, Xc, kScale) {
+  _dwellStep(dt, v, dir, wl, cols, Xc, kScale, P) {
+    // Work in a wrap window centred on the hold position, so "past the centre"
+    // and "approaching again" are unambiguous after the position wraps.
+    const half = P / 2;
+    this.X = Xc - half + mod(this.X - (Xc - half), P);
     const D = 6 * kScale; // easing distance in LEDs
-    const toCenter = dir < 0 ? this.X - Xc : Xc - this.X; // >0 while approaching
+    const toCenter = dir < 0 ? this.X - Xc : Xc - this.X; // >0 while approaching, <0 once past
+    if (this.dwell === 'hold') {
+      this.X = Xc;
+      if (this.time >= this.holdUntil) this.dwell = 'exit';
+      return;
+    }
+    if (this.dwell === 'enter' && toCenter < -0.5) this.dwell = 'exit';      // already past (fling, resize)
+    else if (this.dwell === 'exit' && toCenter > 0.5) this.dwell = 'enter';  // wrapped: coming back in
     if (this.dwell === 'enter') {
       if (toCenter <= 0.02) {
         this.X = Xc; this.dwell = 'hold';
         const chars = Math.max(1, Math.round(wl / (6 * kScale)));
         this.holdUntil = this.time + clamp(1.2 + 0.18 * chars, 1.6, 4.5);
-      } else if (toCenter < 0) {
-        this.dwell = 'exit';
-      } else {
-        const f = clamp(toCenter / D, 0.12, 1);
-        const step = Math.min(v * Math.sqrt(f) * dt, toCenter);
-        this.X += step * dir;
+        return;
       }
-    } else if (this.dwell === 'hold') {
-      this.X = Xc;
-      if (this.time >= this.holdUntil) this.dwell = 'exit';
+      const f = clamp(toCenter / D, 0.12, 1);
+      this.X += Math.min(v * Math.sqrt(f) * dt, toCenter) * dir;
     } else {
       const away = Math.max(0, -toCenter);
       const f = clamp(0.12 + away / D, 0, 1);
       this.X += v * f * dt * dir;
-      const gone = dir < 0 ? this.X + wl < 0 : this.X > cols;
-      if (gone) { this.X = dir < 0 ? cols : -wl; this.dwell = 'enter'; }
     }
   }
 
@@ -457,17 +472,33 @@ export class Engine {
   _pace(rawDt) {
     if (this.fixed || document.visibilityState !== 'visible' || rawDt <= 0 || rawDt > 0.5) return;
     this.frameCount++; this.frameWindow += rawDt;
-    if (rawDt > 0.028) this.slowFrames++;
+    this.minDt = Math.min(this.minDt || 1, rawDt);
+    // "Slow" is relative to the fastest frame seen (about the display's refresh period),
+    // so a 30 Hz display or low-power mode does not look like a struggling GPU.
+    if (rawDt > Math.max(0.028, 1.7 * (this.minDt || 0.016))) this.slowFrames++;
     if (this.frameWindow >= 2) {
       if (this.frameCount > 20 && this.slowFrames / this.frameCount > 0.4 && this.dprCap > 1.25) {
         this.dprCap = this.dprCap > 1.5 ? 1.5 : 1.25;
         this.resize();
       }
-      this.frameCount = 0; this.slowFrames = 0; this.frameWindow = 0;
+      this.frameCount = 0; this.slowFrames = 0; this.frameWindow = 0; this.minDt = 1;
     }
   }
 
   // ----------------------------------------------------------------- WebGL
+  _probeGL() {
+    try {
+      const c = document.createElement('canvas');
+      const gl = c.getContext('webgl', { failIfMajorPerformanceCaveat: false }) || c.getContext('experimental-webgl');
+      if (!gl) return false;
+      const ok = (type, src) => { const sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh); const r = gl.getShaderParameter(sh, gl.COMPILE_STATUS); gl.deleteShader(sh); return r; };
+      const good = ok(gl.VERTEX_SHADER, VERT) && ok(gl.FRAGMENT_SHADER, FRAG);
+      const lose = gl.getExtension('WEBGL_lose_context');
+      if (lose) lose.loseContext();
+      return good;
+    } catch (e) { return false; }
+  }
+
   _initGL() {
     let gl = null;
     const attrs = { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: false, desynchronized: true };
@@ -505,8 +536,6 @@ export class Engine {
     gl.uniform1i(u.uTex, 0);
     gl.clearColor(0, 0, 0, 1);
     this.gl = gl; this.prog = prog; this.tex = tex; this.u = u; this.texW = 0; this.texH = 0;
-    this.canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.stop(); }, false);
-    this.canvas.addEventListener('webglcontextrestored', () => { this.gl = null; if (this._initGL()) { this.resize(); this.dirty = true; this.start(); } }, false);
     return true;
   }
 
@@ -544,6 +573,13 @@ export class Engine {
   _init2D() {
     this.gl = null;
     this.ctx = this.canvas.getContext('2d', { alpha: false });
+    if (!this.ctx) {
+      // The canvas already holds a WebGL context; swap in a fresh element for 2D.
+      const fresh = this.canvas.cloneNode(false);
+      this.canvas.replaceWith(fresh);
+      this.canvas = fresh;
+      this.ctx = fresh.getContext('2d', { alpha: false });
+    }
     this.sprites = null;
   }
 
@@ -601,6 +637,7 @@ export class Engine {
         const i = (r * cols + col) * 4;
         const lum = (lin[i] * 0.2126 + lin[i + 1] * 0.7152 + lin[i + 2] * 0.0722) / 255;
         const level = Math.round(clamp(Math.pow(lum, 0.6), 0, 1) * (sp.levels - 1));
+        if (level === 0 && this.presentCur > 0.5) continue; // presenting: true black between LEDs
         ctx.drawImage(sp.sheet, level * size, 0, size, size, ox + col * PX + PX / 2 - half, oy + r * PX + PX / 2 - half, size, size);
       }
     }

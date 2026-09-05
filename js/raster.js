@@ -193,6 +193,11 @@ function planText(text, font, rows, ss) {
  * Draw the plan in horizontal chunks (so we never allocate a canvas wider than
  * the browser allows) and accumulate per-row prefix sums of premultiplied RGBA.
  */
+// sRGB byte -> linear-light byte, so coloured glyphs (emoji) mix correctly with
+// the linear-light renderer. White text is unaffected.
+const LINEAR = new Float32Array(256);
+for (let i = 0; i < 256; i++) LINEAR[i] = Math.pow(i / 255, 2.2) * 255;
+
 function buildStrip(draw, W, H, rows, ss) {
   const CW = 1024;
   const stride = 4;
@@ -216,9 +221,9 @@ function buildStrip(draw, W, H, rows, ss) {
           if (a) {
             const o = (x0 + x + 1) * stride;
             const f = a / 255;
-            band[o] += img[i] * f;
-            band[o + 1] += img[i + 1] * f;
-            band[o + 2] += img[i + 2] * f;
+            band[o] += LINEAR[img[i]] * f;
+            band[o + 1] += LINEAR[img[i + 1]] * f;
+            band[o + 2] += LINEAR[img[i + 2]] * f;
             band[o + 3] += a;
           }
         }

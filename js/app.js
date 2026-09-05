@@ -54,7 +54,7 @@ function loadState() {
   if (!ROW_OPTIONS.includes(+s.rows)) s.rows = DEFAULTS.rows;
   s.rows = +s.rows;
   s.speed = Math.min(100, Math.max(0, +s.speed || 0));
-  s.glow = Math.min(2, Math.max(0, +s.glow || 0));
+  s.glow = Math.min(2, Math.max(0, Math.round(+s.glow) || 0));
   if (!Array.isArray(s.recents)) s.recents = [];
   s.text = String(s.text || '').slice(0, 200);
   return s;
@@ -594,7 +594,10 @@ function togglePause() {
 }
 
 addEventListener('keydown', (e) => {
-  if (e.target === msg || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target;
+  if (t && t !== document.body && t !== canvas && t !== document.documentElement) return; // a control has focus
+
   if (e.key === 'Escape' && present) { exitPresent(); e.preventDefault(); }
   else if ((e.key === 'f' || e.key === 'F') && !present) { enterPresent(); e.preventDefault(); }
   else if (e.key === ' ') { togglePause(); if (present) showHud(); e.preventDefault(); }
@@ -758,7 +761,7 @@ boot.done.then(() => {
   body.classList.remove('booting');
   sheet.classList.add('reveal');
   layout();
-  engine.rectCur = { ...engine.rect }; // start the panel where it will live; it fades in instead of shrinking
+  engine.rectCur = { ...engine.rect }; // no zoom from the boot grid: the panel fades in and then follows the rising sheet
   requestAnimationFrame(() => { engine.setBrightness(state.text.trim() ? 1 : 0.42); });
   setTimeout(() => sheet.classList.remove('reveal'), 1200);
   fontsReady.then(() => { stripKey = ''; updateStrip(); }); // re-raster once web fonts are certain
