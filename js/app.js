@@ -788,9 +788,22 @@ installBtn.addEventListener('click', async () => {
     deferredInstall = null;
     installBtn.hidden = true;
   } else if (isIOS) {
-    toast('Tap Share, then "Add to Home Screen"', 4200);
+    showInstallCard();
   }
 });
+const installCard = $('#installCard');
+function showInstallCard() {
+  installCard.hidden = false;
+  requestAnimationFrame(() => installCard.classList.add('show'));
+  $('#installClose').focus();
+}
+function hideInstallCard() {
+  installCard.classList.remove('show');
+  setTimeout(() => { installCard.hidden = true; }, 260);
+}
+$('#installClose').addEventListener('click', hideInstallCard);
+installCard.addEventListener('click', (e) => { if (e.target === installCard) hideInstallCard(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !installCard.hidden) hideInstallCard(); });
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   let wantReload = false;

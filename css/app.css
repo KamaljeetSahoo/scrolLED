@@ -264,6 +264,30 @@ body.present .toast { top: 50%; translate: -50% -50%; --hud-r: calc(var(--hud-l,
 body.present .toast.show { transform: rotate(var(--rot, 0deg)) translateY(calc(-1 * var(--hud-r))); }
 .toast button { color: var(--accent); font-weight: 700; margin-left: 10px; }
 
+/* ------------------------------------------------------------ install card */
+.install-card {
+  position: fixed; inset: 0; z-index: 30; display: grid; align-items: end;
+  background: rgba(0, 0, 0, 0.55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  opacity: 0; transition: opacity 220ms var(--ease-out);
+}
+.install-card.show { opacity: 1; }
+.install-inner {
+  margin: 0 8px calc(var(--sab) + 8px); padding: 22px 20px 16px;
+  background: rgba(22, 22, 24, 0.96); border: 1px solid var(--line); border-radius: 28px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  transform: translateY(24px); transition: transform 360ms var(--ease-out);
+}
+.install-card.show .install-inner { transform: none; }
+.install-inner h2 { margin: 0 0 6px; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
+.install-note { margin: 0 0 16px; color: var(--fg-dim); font-size: 14px; }
+.install-steps { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 12px; }
+.install-steps li { display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: center; font-size: 15px; line-height: 1.35; color: var(--fg); }
+.install-steps b { color: var(--accent); }
+.install-inner .cta { display: flex; width: 100%; margin-top: 0; }
+.step-ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: rgb(var(--accent-rgb) / 0.14); border: 1px solid rgb(var(--accent-rgb) / 0.4); color: var(--accent); }
+.step-ic svg { width: 22px; height: 22px; }
+@media (min-width: 700px) { .install-card { align-items: center; } .install-inner { max-width: 440px; margin: 0 auto; } }
+
 /* ----------------------------------------------------- typing / keyboard */
 .controls { max-height: 70vh; opacity: 1; margin-bottom: 14px; visibility: visible; transition: max-height 380ms var(--ease-out), opacity 220ms, margin 380ms var(--ease-out), visibility 0s; }
 body.typing .controls, .sheet.collapsed .controls { max-height: 0; opacity: 0; pointer-events: none; margin-bottom: 0; visibility: hidden; transition-delay: 0s, 0s, 0s, 380ms; }

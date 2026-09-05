@@ -138,6 +138,19 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+  <div id="installCard" class="install-card" role="dialog" aria-modal="true" aria-labelledby="installTitle" hidden>
+    <div class="install-inner">
+      <h2 id="installTitle">Add scrolLED to your Home Screen</h2>
+      <p class="install-note">iPhone only offers this from Safari's own share menu, not from the app's Share button.</p>
+      <ol class="install-steps">
+        <li><span class="step-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18M3 12h18"/></svg></span><span>If you opened this link inside another app, open it in <b>Safari</b> first.</span></li>
+        <li><span class="step-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0-12-4 4m4-4 4 4M6 11v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8"/></svg></span><span>Tap Safari's <b>Share</b> button, the square with an arrow at the bottom of the screen.</span></li>
+        <li><span class="step-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></svg></span><span>Scroll down the list and tap <b>Add to Home Screen</b>, then <b>Add</b>.</span></li>
+      </ol>
+      <button id="installClose" class="cta" type="button">Got it</button>
+    </div>
+  </div>
+
   <script type="module" src="js/app.js"></script>
 </body>
 </html>
