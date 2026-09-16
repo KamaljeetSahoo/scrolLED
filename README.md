@@ -9,8 +9,11 @@ It is a static PWA with no build step and no dependencies. Open it once and it w
 - **Fonts**: an authentic 5×8 dot-matrix bitmap font (plus a bold cut) and six display fonts (Anton, Bungee, Orbitron, Abril Fatface, Pacifico, system sans) rasterized through the same LED pipeline. Emoji work too.
 - **Colour**: eight LED colours, white, and rainbow. The whole UI re-tints to the colour you pick.
 - **Speed**, **dot size** (four steps), **direction**, round or square LEDs, **Smooth** or classic **Stepped** motion, **Afterglow** phosphor trails, and three glow levels.
-- **Present mode**: the UI disappears, the screen stays awake, and the sign fills the display. Gravity decides which way is up, so the text reads correctly however you hold the phone, with auto-rotate on or off. Tap for a small overlay with exit, pause, full screen and Beat. The back button exits.
-- **Full screen**: a button in the Present overlay hides the browser's bars on Android, iPad and desktop, and toggles back without leaving the show. iPhone Safari has no full-screen API at all, so there the button opens the Add to Home Screen steps; installed, scrolLED runs edge to edge with no bars.
+- **Present mode**: the UI disappears, the screen stays awake, and the sign fills the display. The phone's own rotation is trusted first, so with auto-rotate on the sign simply follows the viewport. Gravity is used only to cover the opposite case: rotation lock on, phone held sideways, viewport still portrait. Tap for a small overlay with exit, pause, full screen and Beat. The back button exits.
+- **Full screen**: a button in the Present overlay hides the browser's bars and toggles back without leaving the show.
+  - Android, iPad and desktop use the ordinary Fullscreen API.
+  - iPhone Safari has no element full screen at all (Apple ships `requestFullscreen` on iPad only), so scrolLED takes the one route iOS does allow: the sign is streamed into a hidden `<video>` and handed to the native player, the same full screen you get when a video plays. iOS shows only the video there, so the app's own overlay is gone until you close it with the player's Done button.
+  - If that path cannot produce a frame, which a long-standing WebKit bug causes on some devices, the button falls back to the Add to Home Screen steps. Installed, scrolLED runs with no Safari bars at all.
 - **Scrub with your finger**: drag the sign to push it forward or pull it back, in the editor or mid-show. Let go and it throws, then eases back to its cruising speed on its own.
 - **Short messages dwell**: text that fits slides in, holds centred for a moment, and slides out. Long messages loop.
 - **Beat** (opt-in, uses the microphone): the LEDs swell, the glow blooms and the colours punch on every bass hit. Turn it on with the Beat chip or the mic button in Present mode.
@@ -28,6 +31,7 @@ js/raster.js   message -> Strip (prefix sums), fonts
 js/engine.js   frame loop, motion (dwell, stepping, grab/fling), WebGL + Canvas2D renderers
 js/boot.js     power-on self-test choreography
 js/reactive.js microphone (bass, beats) and motion (energy, tilt, orientation) senses
+js/videofs.js  iPhone-only: streams the canvas into a <video> for true full screen
 js/app.js      UI, state, present mode, gestures, PWA plumbing
 js/font5x8.js  bitmap font (generated from tools/glyphs.json)
 ```

@@ -244,7 +244,7 @@ export class Engine {
   }
   grabEnd() {
     if (!this.grab) return;
-    const v = clamp(this.grab.vel, -160 * this.rows / 10, 160 * this.rows / 10);
+    const v = clamp(this.grab.vel, -90 * this.rows / 10, 90 * this.rows / 10);
     this.grab = null;
     this.flingVel = Math.abs(v) > 2 ? v : null;
     this.dwell = 'enter';
@@ -375,7 +375,7 @@ export class Engine {
         // position is driven by the finger
       } else if (this.flingVel !== null) {
         const target = (this.speed <= 0 && fits) ? 0 : v * dir;
-        this.flingVel = damp(this.flingVel, target, 2.5, dt);
+        this.flingVel = damp(this.flingVel, target, 3.5, dt);
         this.X += this.flingVel * dt;
         if (Math.abs(this.flingVel - target) < 0.4) this.flingVel = null;
       } else if (this.paused) {

@@ -6,6 +6,7 @@ import { FONTS, FONT_BY_ID, ROW_OPTIONS, rasterize, preloadFonts } from './raste
 import { GLYPHS } from './font5x8.js';
 import { bootSequence } from './boot.js';
 import { Reactive } from './reactive.js';
+import { VideoFullscreen } from './videofs.js';
 
 const $ = (sel) => document.querySelector(sel);
 const root = document.documentElement;
@@ -148,6 +149,7 @@ const isStandalone = matchMedia('(display-mode: standalone), (display-mode: full
 // ------------------------------------------------------------------ engine
 const engine = new Engine(canvas);
 const reactive = new Reactive();
+const videoFs = new VideoFullscreen(canvas);
 engine.start();
 let firstFrame = false;
 let lastFrameAt = performance.now();
@@ -165,6 +167,7 @@ engine.onFrame = () => {
   const b = Math.max(reactive.beat, reactive.pulse * 0.5);
   if (!reducedMotion && Math.abs(b - lastBeatVar) > 0.02) { lastBeatVar = b; root.style.setProperty('--beat', b.toFixed(3)); }
   if (!booting && layoutFrames > 0) { layoutFrames--; layout(); }
+  videoFs.grabFrame(); // feeds iPhone's full-screen video path; no-op otherwise
 };
 const controlsEl = $('#controls');
 sheet.addEventListener('transitionend', () => requestLayout(3));
@@ -219,10 +222,14 @@ let autoAngle = null;   // physical orientation from gravity, when available
 let booting = true;
 
 function presentAngle() {
-  const portrait = innerHeight > innerWidth;
-  // With gravity we know which way is up. Without it, assume the phone will be
-  // held sideways, which is how people hold up a sign.
-  return autoAngle !== null ? autoAngle : (portrait ? 90 : 0);
+  // Trust the phone's own rotation first. If auto-rotate is on, the browser has
+  // already turned the viewport and rotating again would lay the text sideways
+  // on an already-landscape screen. Gravity is only used to cover the opposite
+  // case: rotation lock on, so the phone is held sideways while the viewport
+  // stays portrait. Then, and only then, we turn the sign ourselves.
+  if (autoAngle === null) return 0;
+  if (innerWidth > innerHeight) return 0;          // the OS rotated it; never double up
+  return autoAngle === 90 || autoAngle === 270 ? autoAngle : 0;
 }
 
 function layout() {
@@ -608,6 +615,7 @@ async function enterPresent() {
   updateThemeColor();
   vibrate([8, 30, 8]);
   startMotion(); // inside the tap: iOS shows its motion permission prompt here
+  videoFs.prewarm(); // so the full screen button can act inside a later tap
   await enterFullscreen();
   if (!present) return; // backed out while the browser was going full screen
   updateAngle();
@@ -647,6 +655,7 @@ function exitPresent({ fromHistory = false } = {}) {
   hideHud();
   hideToast();
   releaseWakeLock();
+  videoFs.teardown();   // stop capturing the canvas once the show is over
   if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
   updateAngle();
   updateThemeColor();
@@ -677,7 +686,7 @@ const fsRequest = fsEl.requestFullscreen || fsEl.webkitRequestFullscreen;
 const fsExit = document.exitFullscreen || document.webkitExitFullscreen;
 function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
 function syncFs() {
-  const on = isFullscreen();
+  const on = isFullscreen() || videoFs.active;
   body.classList.toggle('fullscreen', on);
   fsBtn.setAttribute('aria-pressed', String(on));
   fsBtn.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
@@ -688,14 +697,27 @@ async function enterFullscreen() {
   if (isFullscreen() || !fsRequest) return false;
   try { await fsRequest.call(fsEl, { navigationUI: 'hide' }); return true; } catch (e) { return false; }
 }
-async function toggleFullscreen() {
+// Not async: iPhone's video full screen must be requested inside the tap itself,
+// and a single await in front of it would forfeit the user gesture.
+function toggleFullscreen() {
   vibrate(6);
-  if (isFullscreen()) { try { await fsExit.call(document); } catch (e) { /* ignore */ } return; }
-  if (await enterFullscreen()) return;
-  // iPhone Safari has no full-screen API at all: installing is the only way.
-  if (isIOS && !isStandalone) { exitPresent(); showInstallCard(); }
+  if (videoFs.active) { videoFs.exit(); return; }
+  if (isFullscreen()) { try { fsExit.call(document); } catch (e) { /* ignore */ } return; }
+  if (fsRequest) { enterFullscreen(); return; }
+  if (videoFs.enter()) {                             // iPhone: the sign goes full screen as a video
+    // iOS shows only the video there, so these controls are gone until they
+    // close it with the player's own Done button.
+    return;
+  }
+  // Nothing left to try, so point at the one thing that does work. Never leave
+  // Present to do it: the button is meant to change the view, not end the show.
+  if (isIOS && !isStandalone) showInstallCard();
   else toast('This browser has no full screen');
 }
+videoFs.onChange = (on) => {
+  syncFs();
+  if (!on && present) { requestLayout(); showHud(); }   // back from the native player
+};
 fsBtn.addEventListener('click', () => { toggleFullscreen(); showHud(); });
 document.addEventListener('fullscreenchange', syncFs);
 document.addEventListener('webkitfullscreenchange', syncFs);

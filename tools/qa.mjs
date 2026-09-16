@@ -53,7 +53,10 @@ await withPage(GL, { width: 390, height: 844 }, async (page, errors) => {
   await page.click('#presentBtn');
   await page.waitForTimeout(1200);
   const pres = await page.evaluate(() => ({ present: document.body.classList.contains('present'), angle: window.scrolled.engine.angle, hist: !!(history.state && history.state.present) }));
-  check('present mode enters (rotated in portrait)', pres.present && pres.angle === 90 && pres.hist, JSON.stringify(pres));
+  // Auto-rotate is the source of truth: with the viewport already portrait and no
+  // gravity reading, the sign must NOT rotate itself, or it lands sideways on a
+  // phone the browser has already turned.
+  check('present mode enters without fighting auto-rotate', pres.present && pres.angle === 0 && pres.hist, JSON.stringify(pres));
   await page.goBack();
   await page.waitForTimeout(800);
   check('back button exits present', await page.evaluate(() => !document.body.classList.contains('present')));
@@ -160,14 +163,48 @@ await withPage(GL, { width: 393, height: 660 }, async (page, errors) => {
     const dragged = e.X, grabbed = !!e.grab;
     send('pointerup', rotated ? bx : bx + d, rotated ? by + d : by);
     const xs = [];
-    for (let i = 0; i < 24; i++) { await frame(); xs.push(e.X); }
+    for (let i = 0; i < 60; i++) { await frame(); xs.push(e.X); }   // allow a hard throw to settle
     let fwd = 0;
     for (let i = 1; i < xs.length; i++) { const dd = xs[i] - xs[i - 1]; if (Math.abs(dd) > 100) continue; if (dd < -0.05) fwd++; }
-    return { moved: Math.abs(dragged - start) > 2, grabbed, resumes: fwd >= 3, released: !e.grab };
+    return { moved: Math.abs(dragged - start) > 2, grabbed, resumes: fwd >= 5, released: !e.grab, fwd };
   });
   check('dragging the sign scrubs it', scrub.moved && scrub.grabbed);
-  check('letting go resumes scrolling', scrub.resumes && scrub.released);
+  check('letting go resumes scrolling', scrub.resumes && scrub.released, `forward frames: ${scrub.fwd}`);
   check('no page errors (present run)', errors.length === 0, errors.join(' | '));
+});
+
+// Orientation: the phone's own rotation wins. Feeding gravity must never make
+// the sign turn a second time on a viewport the browser already rotated.
+await withPage(GL, { width: 393, height: 660 }, async (page, errors) => {
+  await page.goto(base + '#m=ORIENTATION', { waitUntil: 'load' });
+  await page.evaluate(() => { try { sessionStorage.setItem('scrolled.booted', '1'); localStorage.setItem('scrolled.hint', '1'); } catch (e) {} });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => !document.body.classList.contains('booting'), null, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1000);
+  await page.click('#presentBtn');
+  await page.waitForTimeout(1500);
+  const feed = (x, y, z) => page.evaluate(async ({ x, y, z }) => {
+    const r = window.scrolled.reactive;
+    if (!r.motionOn) await r.startMotion();
+    const t0 = performance.now();
+    while (performance.now() - t0 < 700) {
+      dispatchEvent(new DeviceMotionEvent('devicemotion', { accelerationIncludingGravity: { x, y, z }, interval: 16 }));
+      await new Promise(res => setTimeout(res, 16));
+    }
+    await new Promise(res => setTimeout(res, 300));
+    return window.scrolled.engine.angle;
+  }, { x, y, z });
+  // Portrait viewport, phone upright: no rotation.
+  check('upright phone is not rotated', ((await feed(0.2, 9.8, 0.4)) % 360 + 360) % 360 === 0);
+  // Portrait viewport, phone turned sideways (rotation lock on): compensate.
+  const locked = ((await feed(9.8, 0.2, 0.4)) % 360 + 360) % 360;
+  check('rotation-locked phone held sideways is compensated', locked === 90 || locked === 270, String(locked));
+  // Landscape viewport, i.e. auto-rotate already did the work: never rotate again.
+  await page.setViewportSize({ width: 660, height: 393 });
+  await page.waitForTimeout(600);
+  const land = ((await feed(9.8, 0.2, 0.4)) % 360 + 360) % 360;
+  check('landscape viewport is never rotated again', land === 0, String(land));
+  check('no page errors (orientation run)', errors.length === 0, errors.join(' | '));
 });
 
 await withPage(GL, { width: 1280, height: 800 }, async (page, errors) => {
