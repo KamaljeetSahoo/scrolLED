@@ -23,7 +23,9 @@ async function withPage(args, viewport, fn) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  try { await fn(page, errors); } finally { await browser.close(); }
+  try { await fn(page, errors); }
+  catch (e) { check('suite ran without aborting', false, String(e.message || e).split('\n')[0]); }
+  finally { await browser.close(); }
 }
 
 await withPage(GL, { width: 390, height: 844 }, async (page, errors) => {
@@ -65,6 +67,45 @@ await withPage(['--disable-3d-apis'], { width: 390, height: 844 }, async (page, 
   const webgl = await page.evaluate(() => window.scrolled.engine.isWebGL);
   check('Canvas2D fallback used', webgl === false);
   check('no page errors (fallback run)', errors.length === 0, errors.join(' | '));
+});
+
+// An overlay that is invisible but still hit-testable makes the whole UI look
+// fine and respond to nothing. Check that nothing covers the main controls.
+await withPage(GL, { width: 393, height: 660 }, async (page, errors) => {
+  await page.goto(base + '#m=TAP+TEST', { waitUntil: 'load' });
+  await page.evaluate(() => { try { sessionStorage.setItem('scrolled.booted', '1'); } catch (e) {} });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => !document.body.classList.contains('booting'), null, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(2500);
+  const clear = () => page.evaluate(() => {
+    const ids = ['presentBtn', 'msg', 'handleBtn'];
+    const bad = [];
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      const r = el.getBoundingClientRect();
+      const top = document.elementFromPoint(r.left + r.width / 2, Math.min(r.top + r.height / 2, innerHeight - 2));
+      if (!(top === el || el.contains(top) || top === null)) bad.push(`${id} covered by ${top.tagName}#${top.id}`);
+      if (r.bottom > innerHeight + 1) bad.push(`${id} below the fold by ${Math.round(r.bottom - innerHeight)}px`);
+    }
+    return bad;
+  });
+  check('controls are not covered at rest', (await clear()).length === 0, (await clear()).join('; '));
+  // open every overlay, dismiss it, and re-check immediately (no settle time)
+  await page.evaluate(() => window.scrolled.showInstallCard && window.scrolled.showInstallCard());
+  await page.waitForTimeout(400);
+  await page.evaluate(() => document.getElementById('installClose').click());
+  const afterCard = await clear();
+  check('install card releases taps the moment it closes', afterCard.length === 0, afterCard.join('; '));
+  await page.evaluate(() => window.scrolled.toast && window.scrolled.toast('hello', 300));
+  await page.waitForTimeout(700);
+  const afterToast = await clear();
+  check('toast releases taps after it fades', afterToast.length === 0, afterToast.join('; '));
+  // and the button actually works from a real coordinate tap
+  const box = await page.locator('#presentBtn').boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(900);
+  check('Present enters from a coordinate tap', await page.evaluate(() => document.body.classList.contains('present')));
+  check('no page errors (overlay run)', errors.length === 0, errors.join(' | '));
 });
 
 await withPage(GL, { width: 1280, height: 800 }, async (page, errors) => {

@@ -575,15 +575,13 @@ async function requestWakeLock() {
 function releaseWakeLock() { const w = wakeLock; wakeLock = null; try { if (w) w.release(); } catch (e) { /* ignore */ } }
 
 function showHud(autoHide = true) {
-  hud.hidden = false;
-  requestAnimationFrame(() => hud.classList.add('show'));
+  hud.classList.add('show');
   clearTimeout(hudTimer);
   if (autoHide) hudTimer = setTimeout(hideHud, 3000);
 }
 function hideHud() {
   clearTimeout(hudTimer);
   hud.classList.remove('show');
-  setTimeout(() => { if (!hud.classList.contains('show')) hud.hidden = true; }, 300);
 }
 
 // Motion: gravity keeps the text upright for whoever is looking (even with the
@@ -595,11 +593,12 @@ async function startMotion() {
 }
 
 async function enterPresent() {
+  // Self-heal: if the flag ever drifts from what is on screen, trust the screen.
+  if (present && !body.classList.contains('present')) present = false;
   if (present || booting) return;
   present = true;
   msg.blur();
   body.classList.add('present');
-  sheet.inert = true; topBar.inert = true;
   try { history.pushState({ present: true }, ''); } catch (e) { /* ignore */ }
   engine.setPresent(1);
   updateAngle();
@@ -644,7 +643,6 @@ function exitPresent({ fromHistory = false } = {}) {
   engine.paused = false;
   engine.setPresent(0);
   body.classList.remove('present', 'paused');
-  sheet.inert = false; topBar.inert = false;
   hideHud();
   hideToast();
   releaseWakeLock();
@@ -698,8 +696,8 @@ addEventListener('keydown', (e) => {
 // ------------------------------------------------------------------- toast
 let toastTimer = 0;
 function toast(text, ms = 2200, action) {
-  toastEl.hidden = false;
   toastEl.innerHTML = '';
+  toastEl.classList.add('show');
   requestAnimationFrame(() => {
     // populate after the live region is visible so screen readers announce it
     toastEl.append(document.createTextNode(text));
@@ -708,15 +706,14 @@ function toast(text, ms = 2200, action) {
       b.addEventListener('click', (e) => { e.stopPropagation(); hideToast(); action.onClick(); });
       toastEl.appendChild(b);
     }
-    toastEl.classList.add('show');
   });
   clearTimeout(toastTimer);
   if (ms > 0) toastTimer = setTimeout(hideToast, ms);
 }
 toastEl.addEventListener('click', () => hideToast());
 function hideToast() {
+  clearTimeout(toastTimer);
   toastEl.classList.remove('show');
-  setTimeout(() => { if (!toastEl.classList.contains('show')) toastEl.hidden = true; }, 300);
 }
 
 // ------------------------------------------------------------ share / PWA
@@ -809,17 +806,15 @@ installBtn.addEventListener('click', async () => {
 });
 const installCard = $('#installCard');
 function showInstallCard() {
-  installCard.hidden = false;
-  requestAnimationFrame(() => installCard.classList.add('show'));
+  installCard.classList.add('show');
   $('#installClose').focus();
 }
 function hideInstallCard() {
   installCard.classList.remove('show');
-  setTimeout(() => { installCard.hidden = true; }, 260);
 }
 $('#installClose').addEventListener('click', hideInstallCard);
 installCard.addEventListener('click', (e) => { if (e.target === installCard) hideInstallCard(); });
-addEventListener('keydown', (e) => { if (e.key === 'Escape' && !installCard.hidden) hideInstallCard(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && installCard.classList.contains('show')) hideInstallCard(); });
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   let wantReload = false;
@@ -881,4 +876,4 @@ boot.done.then(() => {
 });
 
 // A small handle for debugging and automated QA (not part of the UI).
-window.scrolled = { engine, state, reactive, present: () => present, renderCard };
+window.scrolled = { engine, state, reactive, present: () => present, renderCard, showInstallCard, toast };

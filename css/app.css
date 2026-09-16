@@ -237,10 +237,11 @@ body.present .top { opacity: 0; transform: translateY(-16px); pointer-events: no
   -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
   opacity: 0; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) translateY(calc(var(--hud-r) + 14px)) scale(0.96);
-  transition: opacity 240ms var(--ease-out), transform 320ms var(--ease-spring);
+  transition: opacity 240ms var(--ease-out), transform 320ms var(--ease-spring), visibility 0s 320ms;
   pointer-events: none;
+  visibility: hidden;
 }
-.hud.show { opacity: 1; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) translateY(var(--hud-r)); pointer-events: auto; }
+.hud.show { opacity: 1; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) translateY(var(--hud-r)); pointer-events: auto; visibility: visible; }
 .hud-btn { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: var(--fg); background: rgba(255, 255, 255, 0.08); transition: transform var(--dur-fast) var(--ease-spring), background 200ms; }
 .hud-btn:active { transform: scale(0.9); background: rgba(255, 255, 255, 0.16); }
 .hud-btn .ic-play { display: none; }
@@ -260,10 +261,11 @@ body.paused .hud-btn .ic-pause { display: none; }
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
   font-size: 14px; font-weight: 500; text-align: center;
   opacity: 0; transform: translateY(-10px);
-  transition: opacity 220ms var(--ease-out), transform 320ms var(--ease-spring);
+  transition: opacity 220ms var(--ease-out), transform 320ms var(--ease-spring), visibility 0s 320ms;
   user-select: text; -webkit-user-select: text;
+  pointer-events: none; visibility: hidden;
 }
-.toast.show { opacity: 1; transform: none; }
+.toast.show { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition-delay: 0s, 0s, 0s; }
 body.present .toast { top: 50%; translate: -50% -50%; --hud-r: calc(var(--hud-l, 100vh) / 2 - var(--sat) - 44px); transform: rotate(var(--rot, 0deg)) translateY(calc(-1 * var(--hud-r) - 10px)); }
 body.present .toast.show { transform: rotate(var(--rot, 0deg)) translateY(calc(-1 * var(--hud-r))); }
 .toast button { color: var(--accent); font-weight: 700; margin-left: 10px; }
@@ -272,9 +274,10 @@ body.present .toast.show { transform: rotate(var(--rot, 0deg)) translateY(calc(-
 .install-card {
   position: fixed; inset: 0; z-index: 30; display: grid; align-items: end;
   background: rgba(0, 0, 0, 0.55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-  opacity: 0; transition: opacity 220ms var(--ease-out);
+  opacity: 0; transition: opacity 220ms var(--ease-out), visibility 0s 220ms;
+  pointer-events: none; visibility: hidden;
 }
-.install-card.show { opacity: 1; }
+.install-card.show { opacity: 1; pointer-events: auto; visibility: visible; transition-delay: 0s, 0s; }
 .install-inner {
   margin: 0 8px calc(var(--sab) + 8px); padding: 22px 20px 16px;
   background: rgba(22, 22, 24, 0.96); border: 1px solid var(--line); border-radius: 28px;
