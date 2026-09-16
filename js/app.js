@@ -13,19 +13,31 @@ const root = document.documentElement;
 const body = document.body;
 
 // ------------------------------------------------------------------ config
-const COLORS = [
-  { id: 'red',     hex: '#ff3b1f' },
-  { id: 'amber',   hex: '#ff9f0a' },
-  { id: 'yellow',  hex: '#ffd60a', dark: true },
-  { id: 'green',   hex: '#3cff5c', dark: true },
-  { id: 'cyan',    hex: '#22e6ff', dark: true },
-  { id: 'blue',    hex: '#2f6bff' },
-  { id: 'purple',  hex: '#a855f7' },
-  { id: 'pink',    hex: '#ff3cac' },
-  { id: 'white',   hex: '#f4f6ff', dark: true },
-  { id: 'rainbow', hex: '#b06cff', rainbow: true },
-];
-const COLOR_BY_ID = Object.fromEntries(COLORS.map(c => [c.id, c]));
+// Colour is a hue anywhere on the wheel, plus two modes that are not hues.
+// Old saved states and shared links used names, so those still map in.
+const LEGACY_HUES = { red: 8, amber: 36, yellow: 52, green: 130, cyan: 187, blue: 223, purple: 271, pink: 326 };
+const WHITE_RGB = [0.957, 0.965, 1];
+const RAINBOW_ACCENT = [0.69, 0.42, 0.97];
+/** Name the neighbourhood of a hue, for screen readers and the URL. */
+function hueName(h) {
+  const NAMES = [[15, 'red'], [45, 'orange'], [65, 'yellow'], [100, 'lime'], [150, 'green'], [195, 'cyan'],
+                 [240, 'blue'], [265, 'indigo'], [290, 'violet'], [330, 'magenta'], [360, 'red']];
+  for (const [limit, name] of NAMES) if (h < limit) return name;
+  return 'red';
+}
+/** Vivid, LED-like RGB for a hue. Matches the old swatches closely. */
+function hueToRgb(h, l = 0.56) {
+  const a = Math.min(l, 1 - l);
+  const f = (n) => { const k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+  return [f(0), f(8), f(4)];
+}
+const isHue = (c) => typeof c === 'number';
+/** The colour the LEDs are tinted with. */
+function colorRgb(c) { return c === 'white' ? WHITE_RGB : c === 'rainbow' ? [1, 1, 1] : hueToRgb(c); }
+/** The colour the interface borrows. */
+function accentRgb(c) { return c === 'white' ? WHITE_RGB : c === 'rainbow' ? RAINBOW_ACCENT : hueToRgb(c); }
+const luminance = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
 const SIZES = [
   { rows: 10, label: 'XL' },
   { rows: 20, label: 'L' },
@@ -36,7 +48,7 @@ const GLOW_LEVELS = [0.12, 0.6, 1.0];
 const GLOW_LABELS = ['Glow off', 'Glow', 'Glow+'];
 const PLACEHOLDER = 'type something...';
 const STORE_KEY = 'scrolled.v1';
-const DEFAULTS = { text: '', font: 'pixel', color: 'red', speed: 50, rows: 20, dir: 'left', shape: 'round', motion: 'smooth', afterglow: false, glow: 1, mic: false, recents: [] };
+const DEFAULTS = { text: '', font: 'pixel', color: 8, speed: 50, rows: 20, dir: 'left', shape: 'round', motion: 'smooth', afterglow: false, glow: 1, mic: false, recents: [] };
 
 // ------------------------------------------------------------------- state
 function loadState() {
@@ -52,10 +64,17 @@ function loadState() {
   }
   return sanitize(s);
 }
+/** Accept a hue, the two mode names, or any legacy swatch name. */
+function normalizeColor(c) {
+  if (c === 'white' || c === 'rainbow') return c;
+  if (typeof c === 'string' && Object.hasOwn(LEGACY_HUES, c)) return LEGACY_HUES[c];
+  const n = Math.round(Number(c));
+  return Number.isFinite(n) ? ((n % 360) + 360) % 360 : DEFAULTS.color;
+}
 const clipText = (t) => Array.from(String(t == null ? '' : t)).slice(0, 200).join(''); // by code point, never splitting an emoji
 function sanitize(s) {
   if (!Object.hasOwn(FONT_BY_ID, s.font)) s.font = DEFAULTS.font;
-  if (!Object.hasOwn(COLOR_BY_ID, s.color)) s.color = DEFAULTS.color;
+  s.color = normalizeColor(s.color);
   if (!ROW_OPTIONS.includes(+s.rows)) s.rows = DEFAULTS.rows;
   s.rows = +s.rows;
   s.speed = Math.min(100, Math.max(0, Math.round(+s.speed) || 0));
@@ -122,7 +141,9 @@ const msg = $('#msg');
 const clearBtn = $('#clearBtn');
 const recentsEl = $('#recents');
 const fontsEl = $('#fonts');
-const colorsEl = $('#colors');
+const hueEl = $('#hue');
+const whiteBtn = $('#whiteBtn');
+const rainbowBtn = $('#rainbowBtn');
 const speedEl = $('#speed');
 const speedWord = $('#speedWord');
 const sizesEl = $('#sizes');
@@ -186,10 +207,10 @@ function updateStrip() {
 }
 
 function applyEngine({ refit = false } = {}) {
-  const col = COLOR_BY_ID[state.color];
+  // The fallback renderer cannot do rainbow, so it shows that mode's own colour.
   engine.setRows(state.rows);
-  engine.setTint(hexToRgb(col.rainbow && engine.isWebGL ? '#ffffff' : col.hex));
-  engine.setRainbow(!!col.rainbow && engine.isWebGL);
+  engine.setTint(state.color === 'rainbow' && !engine.isWebGL ? RAINBOW_ACCENT : colorRgb(state.color));
+  engine.setRainbow(state.color === 'rainbow' && engine.isWebGL);
   engine.setSpeed(speedToUnits(state.speed));
   engine.setDirection(state.dir === 'right' ? 1 : -1);
   engine.setShape(state.shape);
@@ -200,10 +221,6 @@ function applyEngine({ refit = false } = {}) {
   updateStrip();
 }
 
-function hexToRgb(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
-}
 // slider 0..100 -> glyph pixels per second (one Pixel-font character is 6 px):
 // 0 is static, otherwise ~1.2 to ~9 characters per second on an exponential curve.
 function speedToUnits(s) { return s <= 0 ? 0 : 7.2 * Math.pow(7.5, s / 100); }
@@ -263,7 +280,7 @@ function layout() {
   updateScrollCues();
 }
 // Horizontal rows fade at the trailing edge while there is more to scroll.
-const hScrollers = [fontsEl, colorsEl, recentsEl, document.querySelector('.chips.feel')];
+const hScrollers = [fontsEl, recentsEl, document.querySelector('.chips.feel')];
 function updateScrollCues() {
   for (const el of hScrollers) if (el) el.classList.toggle('more', el.scrollWidth - el.clientWidth - el.scrollLeft > 6);
 }
@@ -282,6 +299,7 @@ function updateAngle() {
 function onResize() {
   engine.resize();
   updateAngle();
+  syncColors();   // the hue thumb is positioned in pixels along the track
   requestLayout();
 }
 addEventListener('resize', onResize);
@@ -301,18 +319,19 @@ if (window.visualViewport) {
 }
 
 // ----------------------------------------------------------------- UI build
-function setAccent(colorId) {
-  const c = COLOR_BY_ID[colorId];
-  const [r, g, b] = hexToRgb(c.hex).map(v => Math.round(v * 255));
-  root.style.setProperty('--accent', c.hex);
+function setAccent(color) {
+  const rgb = accentRgb(color);
+  const [r, g, b] = rgb.map(v => Math.round(v * 255));
+  root.style.setProperty('--accent', `rgb(${r} ${g} ${b})`);
   root.style.setProperty('--accent-rgb', `${r} ${g} ${b}`);
-  root.style.setProperty('--on-accent', c.dark ? '#0a0a0a' : '#fff');
+  // Dark text on a light accent, worked out rather than hand-flagged per colour.
+  root.style.setProperty('--on-accent', luminance(rgb) > 0.45 ? '#0a0a0a' : '#fff');
   updateThemeColor();
 }
 function updateThemeColor() {
   if (!themeMeta) return;
   if (present) { themeMeta.setAttribute('content', '#000000'); return; }
-  const [r, g, b] = hexToRgb(COLOR_BY_ID[state.color].hex).map(v => Math.round(v * 255 * 0.12));
+  const [r, g, b] = accentRgb(state.color).map(v => Math.round(v * 255 * 0.12));
   themeMeta.setAttribute('content', `rgb(${r},${g},${b})`);
 }
 
@@ -375,24 +394,63 @@ function syncFonts() {
   if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reducedMotion ? 'auto' : 'smooth' });
 }
 
-function buildColors() {
-  colorsEl.innerHTML = '';
-  for (const c of COLORS) {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = `swatch${c.rainbow ? ' rainbow' : ''}`; b.setAttribute('role', 'radio');
-    b.dataset.id = c.id; b.setAttribute('aria-label', c.id);
-    const [r, g, bl] = hexToRgb(c.hex).map(v => Math.round(v * 255));
-    b.style.setProperty('--c', c.hex); b.style.setProperty('--c-rgb', `${r} ${g} ${bl}`);
-    b.setAttribute('aria-checked', String(c.id === state.color));
-    b.addEventListener('click', () => { if (state.color === c.id) return; state.color = c.id; syncColors(); setAccent(c.id); applyEngine(); persist(); vibrate(6); });
-    colorsEl.appendChild(b);
-  }
-  makeRadioGroup(colorsEl, (b) => b.click());
-  rove(colorsEl);
+// Colour picker: touch the spectrum anywhere and drag. White and rainbow sit on
+// the ends as taps, so the whole control is one row that never scrolls.
+const HUE_PAD = 15;                                // half the thumb, so both ends stay reachable
+function hueSpan() { return Math.max(1, hueEl.getBoundingClientRect().width - HUE_PAD * 2); }
+function pickHueFrom(clientX) {
+  const r = hueEl.getBoundingClientRect();
+  const t = Math.min(1, Math.max(0, (clientX - r.left - HUE_PAD) / hueSpan()));
+  return Math.round(t * 359);
 }
+function setColor(c, { haptic = true } = {}) {
+  const next = normalizeColor(c);
+  if (next === state.color) return;
+  state.color = next;
+  syncColors();
+  setAccent(next);
+  applyEngine();
+  persist();
+  if (haptic) vibrate(6);
+}
+let huePtr = null;
+hueEl.addEventListener('pointerdown', (e) => {
+  huePtr = e.pointerId;
+  try { hueEl.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  setColor(pickHueFrom(e.clientX));
+  e.preventDefault();
+});
+hueEl.addEventListener('pointermove', (e) => {
+  if (huePtr !== e.pointerId) return;
+  setColor(pickHueFrom(e.clientX), { haptic: false });
+});
+const endHue = (e) => { if (huePtr === e.pointerId) huePtr = null; };
+hueEl.addEventListener('pointerup', endHue);
+hueEl.addEventListener('pointercancel', endHue);
+hueEl.addEventListener('keydown', (e) => {
+  const step = e.shiftKey ? 15 : 3;
+  const from = isHue(state.color) ? state.color : 0;
+  let next = null;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = from + step;
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = from - step;
+  else if (e.key === 'Home') next = 0;
+  else if (e.key === 'End') next = 359;
+  if (next === null) return;
+  e.preventDefault();
+  setColor(next);
+});
+whiteBtn.addEventListener('click', () => setColor(state.color === 'white' ? 8 : 'white'));
+rainbowBtn.addEventListener('click', () => setColor(state.color === 'rainbow' ? 8 : 'rainbow'));
+
 function syncColors() {
-  for (const b of colorsEl.children) b.setAttribute('aria-checked', String(b.dataset.id === state.color));
-  rove(colorsEl);
+  const c = state.color;
+  whiteBtn.setAttribute('aria-pressed', String(c === 'white'));
+  rainbowBtn.setAttribute('aria-pressed', String(c === 'rainbow'));
+  hueEl.classList.toggle('muted', !isHue(c));
+  const h = isHue(c) ? c : 0;
+  hueEl.style.setProperty('--p', `${HUE_PAD + (h / 359) * hueSpan()}px`);
+  hueEl.setAttribute('aria-valuenow', String(h));
+  hueEl.setAttribute('aria-valuetext', isHue(c) ? hueName(h) : c);
 }
 
 function buildSizes() {
@@ -786,10 +844,9 @@ async function renderCard(size = 1080) {
     cardEngine = new Engine(c, { width: size, height: size, dpr: 1 });
   }
   const e = cardEngine;
-  const col = COLOR_BY_ID[state.color];
   e.setRows(state.rows);
-  e.setTint(hexToRgb(col.rainbow && e.isWebGL ? '#ffffff' : col.hex), true);
-  e.setRainbow(!!col.rainbow && e.isWebGL);
+  e.setTint(state.color === 'rainbow' && !e.isWebGL ? RAINBOW_ACCENT : colorRgb(state.color), true);
+  e.setRainbow(state.color === 'rainbow' && e.isWebGL);
   e.setShape(state.shape);
   e.setGlow(GLOW_LEVELS[state.glow]);
   e.setAfterglow(false);
@@ -813,11 +870,13 @@ async function renderCard(size = 1080) {
   ctx.drawImage(e.canvas, 0, 0, size, size);
   const step = 6, r = 2.2;
   let x = 0;
+  const [ar, ag, ab] = accentRgb(state.color).map(v => Math.round(v * 255));
+  const accentCss = `rgb(${ar} ${ag} ${ab})`;
   ctx.globalAlpha = 0.5;
   const startX = size - 48 * step - 40, startY = size - 8 * step - 36;
   for (const ch of 'scrolLED') {
     const g = GLYPHS[ch];
-    ctx.fillStyle = 'LED'.includes(ch) ? col.hex : '#f5f5f7';
+    ctx.fillStyle = 'LED'.includes(ch) ? accentCss : '#f5f5f7';
     for (let c = 0; c < 5; c++) for (let row = 0; row < 8; row++) {
       if (g[c] & (1 << row)) { ctx.beginPath(); ctx.arc(startX + (x + c) * step + r, startY + row * step + r, r, 0, Math.PI * 2); ctx.fill(); }
     }
@@ -900,8 +959,8 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 // -------------------------------------------------------------------- boot
 buildWordmark();
 buildFonts();
-buildColors();
 buildSizes();
+syncColors();
 syncSpeed();
 syncToggles();
 syncMsg();
@@ -912,7 +971,7 @@ body.classList.add('booting');
 let warm = false;
 try { warm = sessionStorage.getItem('scrolled.booted') === '1'; sessionStorage.setItem('scrolled.booted', '1'); } catch (e) { /* ignore */ }
 const fontsReady = preloadFonts(2500);
-const bootTint = hexToRgb(COLOR_BY_ID[state.color].rainbow ? '#ff3b1f' : COLOR_BY_ID[state.color].hex);
+const bootTint = state.color === 'rainbow' ? hueToRgb(8) : colorRgb(state.color);
 const boot = bootSequence(engine, { W: innerWidth, H: innerHeight, ready: fontsReady, tint: bootTint, warm, reduced: reducedMotion });
 addEventListener('keydown', () => boot.skip(), { once: true });
 

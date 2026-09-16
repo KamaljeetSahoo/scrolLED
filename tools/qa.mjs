@@ -36,13 +36,13 @@ await withPage(GL, { width: 390, height: 844 }, async (page, errors) => {
   const st = await page.evaluate(() => ({
     text: document.querySelector('#msg').value,
     font: document.querySelector('#fonts [aria-checked="true"]').dataset.id,
-    color: document.querySelector('#colors [aria-checked="true"]').dataset.id,
+    color: window.scrolled.state.color,
     speed: document.querySelector('#speed').value, rows: window.scrolled.state.rows,
     dir: window.scrolled.state.dir, shape: window.scrolled.state.shape, motion: window.scrolled.state.motion,
     after: window.scrolled.state.afterglow, glow: window.scrolled.state.glow,
     webgl: window.scrolled.engine.isWebGL, fps: window.scrolled.engine.stats.fps,
   }));
-  check('hash state round-trips', st.text === 'QA ♥' && st.font === 'bungee' && st.color === 'cyan' && st.speed === '70' && st.rows === 30 && st.dir === 'right' && st.shape === 'square' && st.motion === 'stepped' && st.after === true && st.glow === 2, JSON.stringify(st));
+  check('hash state round-trips', st.text === 'QA ♥' && st.font === 'bungee' && st.color === 187 && st.speed === '70' && st.rows === 30 && st.dir === 'right' && st.shape === 'square' && st.motion === 'stepped' && st.after === true && st.glow === 2, JSON.stringify(st));
   check('WebGL renderer active', st.webgl);
   const sw = await page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); return r && r.active ? 'active' : 'none'; });
   check('service worker active', sw === 'active', sw);
@@ -103,6 +103,37 @@ await withPage(GL, { width: 393, height: 660 }, async (page, errors) => {
   await page.waitForTimeout(700);
   const afterToast = await clear();
   check('toast releases taps after it fades', afterToast.length === 0, afterToast.join('; '));
+  // Colour: one drag across the spectrum, nothing scrolling, nothing clipped.
+  const hue = await page.locator('#hue').boundingBox();
+  const drag = await page.evaluate(async ({ x, y, w }) => {
+    const el = document.getElementById('hue');
+    const send = (t, cx) => el.dispatchEvent(new PointerEvent(t, { pointerId: 1, pointerType: 'touch', clientX: cx, clientY: y, bubbles: true, isPrimary: true }));
+    const vals = [];
+    send('pointerdown', x + 6);
+    for (let i = 0; i <= 10; i++) { send('pointermove', x + 6 + (w - 12) * (i / 10)); await new Promise(r => requestAnimationFrame(r)); vals.push(window.scrolled.state.color); }
+    send('pointerup', x + w - 6);
+    return vals;
+  }, { x: hue.x, y: hue.y + hue.height / 2, w: hue.width });
+  const rising = drag.every((v, i) => i === 0 || v >= drag[i - 1]);
+  check('dragging the spectrum sweeps the whole hue range', rising && drag[0] <= 5 && drag[drag.length - 1] >= 350, drag.join(','));
+  const colour = await page.evaluate(() => {
+    const row = document.querySelector('.picker');
+    const sheet = document.getElementById('sheet').getBoundingClientRect();
+    const caps = [...document.querySelectorAll('.cap')];
+    return {
+      clipped: caps.some(c => { const b = c.getBoundingClientRect(); return b.left < sheet.left - 0.5 || b.right > sheet.right + 0.5; }),
+      reachable: caps.every(c => { const b = c.getBoundingClientRect(); const t = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return t === c || c.contains(t); }),
+      scrolls: row.scrollWidth > row.clientWidth + 1,
+    };
+  });
+  check('colour caps are not clipped by the sheet', !colour.clipped);
+  check('colour caps are tappable', colour.reachable);
+  await page.click('#whiteBtn'); await page.waitForTimeout(250);
+  const white = await page.evaluate(() => window.scrolled.state.color);
+  await page.click('#rainbowBtn'); await page.waitForTimeout(250);
+  const rainbow = await page.evaluate(() => ({ c: window.scrolled.state.color, mode: window.scrolled.engine.mode }));
+  check('white and rainbow caps select their modes', white === 'white' && rainbow.c === 'rainbow' && rainbow.mode === 1, `${white} / ${rainbow.c}`);
+
   // and the button actually works from a real coordinate tap
   const box = await page.locator('#presentBtn').boundingBox();
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);

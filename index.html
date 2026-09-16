@@ -81,7 +81,13 @@
 
       <div class="row">
         <div class="label">Colour</div>
-        <div id="colors" class="swatches scroll" role="radiogroup" aria-label="Colour"></div>
+        <div class="picker">
+          <button id="whiteBtn" class="cap white" type="button" aria-label="White" aria-pressed="false"></button>
+          <div id="hue" class="hue" role="slider" tabindex="0" aria-label="Colour" aria-valuemin="0" aria-valuemax="359" aria-valuenow="8" aria-valuetext="red">
+            <span class="hue-thumb"></span>
+          </div>
+          <button id="rainbowBtn" class="cap rainbow" type="button" aria-label="Rainbow" aria-pressed="false"></button>
+        </div>
       </div>
 
       <div class="row speed">

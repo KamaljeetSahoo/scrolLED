@@ -7,7 +7,7 @@ It is a static PWA with no build step and no dependencies. Open it once and it w
 ## Features
 
 - **Fonts**: an authentic 5×8 dot-matrix bitmap font (plus a bold cut) and six display fonts (Anton, Bungee, Orbitron, Abril Fatface, Pacifico, system sans) rasterized through the same LED pipeline. Emoji work too.
-- **Colour**: eight LED colours, white, and rainbow. The whole UI re-tints to the colour you pick.
+- **Colour**: a spectrum you drag with one finger, so any hue is a touch away, with white and rainbow as taps on either end. Nothing scrolls. The whole UI re-tints to the colour you pick, and text on the accent flips to dark automatically when the hue is light.
 - **Speed**, **dot size** (four steps), **direction**, round or square LEDs, **Smooth** or classic **Stepped** motion, **Afterglow** phosphor trails, and three glow levels.
 - **Present mode**: the UI disappears, the screen stays awake, and the sign fills the display. The phone's own rotation is trusted first, so with auto-rotate on the sign simply follows the viewport. Gravity is used only to cover the opposite case: rotation lock on, phone held sideways, viewport still portrait. Tap for a small overlay with exit, pause, full screen and Beat. The back button exits.
 - **Full screen**: a button in the Present overlay hides the browser's bars and toggles back without leaving the show.
