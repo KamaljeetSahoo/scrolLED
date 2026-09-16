@@ -13,7 +13,8 @@ It is a static PWA with no build step and no dependencies. Open it once and it w
 - **Full screen**: a button in the Present overlay hides the browser's bars and toggles back without leaving the show.
   - Android, iPad and desktop use the ordinary Fullscreen API.
   - iPhone Safari has no element full screen at all (Apple ships `requestFullscreen` on iPad only), so scrolLED takes the one route iOS does allow: the sign is streamed into a hidden `<video>` and handed to the native player, the same full screen you get when a video plays. iOS shows only the video there, so the app's own overlay is gone until you close it with the player's Done button.
-  - If that path cannot produce a frame, which a long-standing WebKit bug causes on some devices, the button falls back to the Add to Home Screen steps. Installed, scrolLED runs with no Safari bars at all.
+  - If that path cannot produce a frame, which a long-standing WebKit bug (181663) causes on some devices, the button suggests adding scrolLED to the Home Screen instead. That result is remembered, so the capture pipeline is not rebuilt on every show.
+  - Installed is the best experience on iPhone regardless: no browser bars at all, and it works offline. `probe.html` is an unlinked diagnostic page that reports whether the video route works on a given device.
 - **Scrub with your finger**: drag the sign to push it forward or pull it back, in the editor or mid-show. Let go and it throws, then eases back to its cruising speed on its own.
 - **Short messages dwell**: text that fits slides in, holds centred for a moment, and slides out. Long messages loop.
 - **Beat** (opt-in, uses the microphone): the LEDs swell, the glow blooms and the colours punch on every bass hit. Turn it on with the Beat chip or the mic button in Present mode.

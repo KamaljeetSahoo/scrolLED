@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>scrolLED full-screen probe</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; background: #08080a; color: #f5f5f7; font: 16px/1.5 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+  main { padding: 20px 18px calc(env(safe-area-inset-bottom) + 28px); max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.sub { color: #a1a1a6; margin: 0 0 18px; font-size: 14px; }
+  ol { list-style: none; padding: 0; margin: 0 0 18px; }
+  li { display: grid; grid-template-columns: 30px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.08); align-items: start; }
+  .mark { font-size: 19px; line-height: 1.2; }
+  .ok { color: #3cff5c; } .bad { color: #ff453a; } .warn { color: #ff9f0a; } .wait { color: #6e6e73; }
+  .name { font-weight: 600; }
+  .detail { color: #a1a1a6; font-size: 13px; word-break: break-word; }
+  #verdict { padding: 16px; border-radius: 16px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); font-size: 15px; }
+  #verdict b { display: block; margin-bottom: 6px; font-size: 16px; }
+  button { width: 100%; height: 52px; margin: 16px 0 0; border: 0; border-radius: 16px; background: #ff3b1f; color: #fff; font: 600 17px/1 inherit; }
+  canvas { display: block; width: 120px; height: 68px; margin: 14px 0 0; border-radius: 8px; border: 1px solid rgba(255,255,255,.14); }
+  video { display: block; width: 120px; height: 68px; margin: 10px 0 0; border-radius: 8px; border: 1px solid rgba(255,255,255,.14); background: #000; object-fit: contain; }
+  .row { display: flex; gap: 14px; align-items: flex-start; }
+  .cap { font-size: 12px; color: #6e6e73; margin-top: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Full-screen probe</h1>
+  <p class="sub">Checks whether this phone can show the sign in the native video player. Takes a few seconds.</p>
+  <ol id="steps"></ol>
+  <div class="row">
+    <div><canvas id="src" width="240" height="135"></canvas><div class="cap">canvas</div></div>
+    <div><video id="vid" playsinline muted autoplay></video><div class="cap">video</div></div>
+  </div>
+  <button id="fs" type="button">Try full screen</button>
+  <div id="verdict" style="margin-top:16px">Running…</div>
+</main>
+<script>
+const STEPS = [
+  ['ua', 'Browser'],
+  ['api', 'video.webkitEnterFullscreen exists'],
+  ['cap', 'canvas.captureStream exists'],
+  ['stream', 'captureStream() returned a track'],
+  ['play', 'video.play() resolved'],
+  ['meta', 'video reported its size'],
+  ['frame', 'video actually rendered a frame'],
+];
+const el = {};
+const list = document.getElementById('steps');
+for (const [id, name] of STEPS) {
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="mark wait" id="m-${id}">•</span><span><span class="name">${name}</span><br><span class="detail" id="d-${id}">waiting…</span></span>`;
+  list.appendChild(li);
+  el[id] = { mark: li.querySelector(`#m-${id}`), detail: li.querySelector(`#d-${id}`) };
+}
+const set = (id, state, text) => {
+  el[id].mark.className = 'mark ' + state;
+  el[id].mark.textContent = state === 'ok' ? '✓' : state === 'bad' ? '✕' : state === 'warn' ? '!' : '•';
+  el[id].detail.textContent = text;
+};
+const verdict = (html) => { document.getElementById('verdict').innerHTML = html; };
+
+set('ua', 'ok', navigator.userAgent);
+
+const canvas = document.getElementById('src');
+const ctx = canvas.getContext('2d');
+let t = 0;
+// A moving pattern, so a frozen frame is obvious.
+setInterval(() => {
+  t += 1;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 240, 135);
+  ctx.fillStyle = '#ff3b1f';
+  for (let i = 0; i < 6; i++) ctx.fillRect(((t * 4 + i * 40) % 280) - 20, 30 + i * 14, 26, 10);
+  ctx.fillStyle = '#fff'; ctx.font = '600 22px system-ui'; ctx.fillText(String(t), 8, 24);
+}, 50);
+
+const video = document.getElementById('vid');
+const hasApi = typeof video.webkitEnterFullscreen === 'function' || typeof video.webkitSetPresentationMode === 'function';
+set('api', hasApi ? 'ok' : 'bad', hasApi
+  ? (typeof video.webkitEnterFullscreen === 'function' ? 'webkitEnterFullscreen' : 'webkitSetPresentationMode')
+  : 'not available in this browser');
+
+const hasCapture = typeof canvas.captureStream === 'function';
+set('cap', hasCapture ? 'ok' : 'bad', hasCapture ? 'present' : 'not available');
+
+let stream = null;
+if (hasCapture) {
+  try {
+    stream = canvas.captureStream(30);
+    const tracks = stream.getVideoTracks();
+    set('stream', tracks.length ? 'ok' : 'bad', tracks.length ? `${tracks.length} track, state ${tracks[0].readyState}` : 'no video track');
+    video.srcObject = stream;
+  } catch (e) { set('stream', 'bad', String(e && e.message || e)); }
+} else set('stream', 'bad', 'skipped');
+
+if (stream) {
+  video.play().then(
+    () => set('play', 'ok', 'playing'),
+    (e) => set('play', 'bad', `${e && e.name}: ${e && e.message}`)
+  );
+  let frames = 0;
+  if (typeof video.requestVideoFrameCallback === 'function') {
+    const tick = () => { frames++; video.requestVideoFrameCallback(tick); };
+    video.requestVideoFrameCallback(tick);
+  }
+  setTimeout(() => {
+    const sized = video.videoWidth > 0 && video.videoHeight > 0;
+    set('meta', sized ? 'ok' : 'bad', sized ? `${video.videoWidth} x ${video.videoHeight}, readyState ${video.readyState}` : `no size, readyState ${video.readyState}`);
+    const rvfc = typeof video.requestVideoFrameCallback === 'function';
+    const painted = rvfc ? frames > 1 : (sized && video.currentTime > 0);
+    set('frame', painted ? 'ok' : 'bad', rvfc
+      ? `${frames} frame callbacks in 3s, currentTime ${video.currentTime.toFixed(2)}`
+      : `no frame callback API; currentTime ${video.currentTime.toFixed(2)}`);
+    if (painted) {
+      verdict('<b>The video route works on this phone.</b> The sign can go properly full screen here. Tap the button above to confirm the native player opens.');
+    } else if (!sized) {
+      verdict('<b>This phone hits the WebKit bug.</b> The stream is created and the video plays, but no frames ever reach it, so the native player would show black. Add to Home Screen is the right route here.');
+    } else {
+      verdict('<b>Video has a size but is not painting.</b> Tell me the numbers above.');
+    }
+  }, 3000);
+} else {
+  set('play', 'bad', 'skipped'); set('meta', 'bad', 'skipped'); set('frame', 'bad', 'skipped');
+  verdict('<b>No canvas capture on this browser.</b> The video route is impossible here.');
+}
+
+document.getElementById('fs').addEventListener('click', () => {
+  try {
+    if (typeof video.webkitEnterFullscreen === 'function') { video.webkitEnterFullscreen(); return; }
+    if (typeof video.webkitSetPresentationMode === 'function') { video.webkitSetPresentationMode('fullscreen'); return; }
+    if (video.requestFullscreen) { video.requestFullscreen(); return; }
+    verdict('<b>No full-screen entry point on this browser.</b>');
+  } catch (e) {
+    verdict(`<b>Full screen was refused.</b> ${e && e.name}: ${e && e.message}`);
+  }
+});
+video.addEventListener('webkitbeginfullscreen', () => verdict('<b>The native player opened.</b> If you can see the moving bars, the full-screen route works on this phone.'));
+video.addEventListener('webkitendfullscreen', () => verdict('<b>You closed the player.</b> Did it show the moving bars, or was it black?'));
+</script>
+</body>
+</html>

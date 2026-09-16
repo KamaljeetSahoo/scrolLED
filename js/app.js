@@ -615,7 +615,15 @@ async function enterPresent() {
   updateThemeColor();
   vibrate([8, 30, 8]);
   startMotion(); // inside the tap: iOS shows its motion permission prompt here
-  videoFs.prewarm(); // so the full screen button can act inside a later tap
+  // Some phones can never paint a captured stream (a long-standing WebKit bug).
+  // Learn that once instead of building the capture pipeline on every show.
+  let noVideoFs = false;
+  try { noVideoFs = localStorage.getItem('scrolled.novideofs') === '1'; } catch (e) { /* ignore */ }
+  if (!noVideoFs && videoFs.supported) {
+    videoFs.prewarm().then((ok) => {
+      if (!ok) { try { localStorage.setItem('scrolled.novideofs', '1'); } catch (e) { /* ignore */ } }
+    });
+  }
   await enterFullscreen();
   if (!present) return; // backed out while the browser was going full screen
   updateAngle();
@@ -642,7 +650,7 @@ function offerTrueFullscreen() {
   try { seen = !!localStorage.getItem('scrolled.fs'); } catch (e) { /* ignore */ }
   if (seen) return;
   try { localStorage.setItem('scrolled.fs', '1'); } catch (e) { /* ignore */ }
-  toast('Safari keeps its bars on screen', 7000, { label: 'Go full screen', onClick: () => { exitPresent(); showInstallCard(); } });
+  toast('Add to the Home Screen for the best experience', 6000, { label: 'How', onClick: () => showInstallCard() });
 }
 
 function exitPresent({ fromHistory = false } = {}) {
