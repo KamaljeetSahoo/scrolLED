@@ -132,6 +132,7 @@ const afterBtn = $('#afterBtn');
 const glowBtn = $('#glowBtn');
 const beatBtn = $('#beatBtn');
 const micBtn = $('#micBtn');
+const fsBtn = $('#fsBtn');
 const presentBtn = $('#presentBtn');
 const handleBtn = $('#handleBtn');
 const hud = $('#hud');
@@ -607,7 +608,7 @@ async function enterPresent() {
   updateThemeColor();
   vibrate([8, 30, 8]);
   startMotion(); // inside the tap: iOS shows its motion permission prompt here
-  try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) { /* iOS */ }
+  await enterFullscreen();
   if (!present) return; // backed out while the browser was going full screen
   updateAngle();
   layout();
@@ -664,12 +665,41 @@ addEventListener('hashchange', () => {
   persist();
 });
 if (history.state && history.state.present) { try { history.replaceState(null, ''); } catch (e) { /* ignore */ } } // reloaded mid-present
-document.addEventListener('fullscreenchange', () => { if (present && !document.fullscreenElement) exitPresent(); });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') { engine.start(); reactive.resume().then(syncMic); if (present && !wakeLock) requestWakeLock(); }
   else { engine.stop(); reactive.suspend(); }
 });
 addEventListener('pageshow', (e) => { if (e.persisted) { engine.start(); if (present) requestWakeLock(); } });
+
+// --------------------------------------------------------------- full screen
+const fsEl = document.documentElement;
+const fsRequest = fsEl.requestFullscreen || fsEl.webkitRequestFullscreen;
+const fsExit = document.exitFullscreen || document.webkitExitFullscreen;
+function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function syncFs() {
+  const on = isFullscreen();
+  body.classList.toggle('fullscreen', on);
+  fsBtn.setAttribute('aria-pressed', String(on));
+  fsBtn.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
+  // Installed, there are no browser bars to hide, so the control has no job.
+  fsBtn.hidden = isStandalone;
+}
+async function enterFullscreen() {
+  if (isFullscreen() || !fsRequest) return false;
+  try { await fsRequest.call(fsEl, { navigationUI: 'hide' }); return true; } catch (e) { return false; }
+}
+async function toggleFullscreen() {
+  vibrate(6);
+  if (isFullscreen()) { try { await fsExit.call(document); } catch (e) { /* ignore */ } return; }
+  if (await enterFullscreen()) return;
+  // iPhone Safari has no full-screen API at all: installing is the only way.
+  if (isIOS && !isStandalone) { exitPresent(); showInstallCard(); }
+  else toast('This browser has no full screen');
+}
+fsBtn.addEventListener('click', () => { toggleFullscreen(); showHud(); });
+document.addEventListener('fullscreenchange', syncFs);
+document.addEventListener('webkitfullscreenchange', syncFs);
+syncFs();
 
 presentBtn.addEventListener('click', enterPresent);
 $('#exitBtn').addEventListener('click', () => { vibrate(6); exitPresent(); });

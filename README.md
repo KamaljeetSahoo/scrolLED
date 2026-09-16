@@ -9,9 +9,9 @@ It is a static PWA with no build step and no dependencies. Open it once and it w
 - **Fonts**: an authentic 5×8 dot-matrix bitmap font (plus a bold cut) and six display fonts (Anton, Bungee, Orbitron, Abril Fatface, Pacifico, system sans) rasterized through the same LED pipeline. Emoji work too.
 - **Colour**: eight LED colours, white, and rainbow. The whole UI re-tints to the colour you pick.
 - **Speed**, **dot size** (four steps), **direction**, round or square LEDs, **Smooth** or classic **Stepped** motion, **Afterglow** phosphor trails, and three glow levels.
-- **Present mode**: the UI disappears, the screen stays awake, and the sign fills the display. Gravity decides which way is up, so the text reads correctly however you hold the phone, with auto-rotate on or off. Tap for a small overlay with exit, pause and Beat. The back button exits.
-- **Full screen**: on Android and iPad the browser's bars are hidden outright. iPhone Safari has no full-screen API, so add scrolLED to your Home Screen; installed, it runs edge to edge with no bars at all.
-- **Grab the strip**: drag the text with your finger and throw it. It eases back to cruise speed.
+- **Present mode**: the UI disappears, the screen stays awake, and the sign fills the display. Gravity decides which way is up, so the text reads correctly however you hold the phone, with auto-rotate on or off. Tap for a small overlay with exit, pause, full screen and Beat. The back button exits.
+- **Full screen**: a button in the Present overlay hides the browser's bars on Android, iPad and desktop, and toggles back without leaving the show. iPhone Safari has no full-screen API at all, so there the button opens the Add to Home Screen steps; installed, scrolLED runs edge to edge with no bars.
+- **Scrub with your finger**: drag the sign to push it forward or pull it back, in the editor or mid-show. Let go and it throws, then eases back to its cruising speed on its own.
 - **Short messages dwell**: text that fits slides in, holds centred for a moment, and slides out. Long messages loop.
 - **Beat** (opt-in, uses the microphone): the LEDs swell, the glow blooms and the colours punch on every bass hit. Turn it on with the Beat chip or the mic button in Present mode.
 - **Motion**: tilt the phone and the highlight on each LED dome shifts like a real glossy LED catching the light; dance with it and the sign pulses with your movement.

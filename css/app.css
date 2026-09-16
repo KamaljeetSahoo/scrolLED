@@ -241,7 +241,7 @@ body.present .top { opacity: 0; transform: translateY(-16px); pointer-events: no
   pointer-events: none;
   visibility: hidden;
 }
-.hud.show { opacity: 1; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) translateY(var(--hud-r)); pointer-events: auto; visibility: visible; }
+.hud.show { opacity: 1; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) translateY(var(--hud-r)); pointer-events: auto; visibility: visible; transition-delay: 0s, 0s, 0s; }
 .hud-btn { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: var(--fg); background: rgba(255, 255, 255, 0.08); transition: transform var(--dur-fast) var(--ease-spring), background 200ms; }
 .hud-btn:active { transform: scale(0.9); background: rgba(255, 255, 255, 0.16); }
 .hud-btn .ic-play { display: none; }
@@ -249,6 +249,9 @@ body.paused .hud-btn .ic-play { display: block; }
 body.paused .hud-btn .ic-pause { display: none; }
 .hud-btn svg { fill: none; }
 .hud-btn .ic-play { fill: currentColor; stroke: none; }
+.hud-btn .ic-compress { display: none; }
+body.fullscreen #fsBtn .ic-compress { display: block; }
+body.fullscreen #fsBtn .ic-expand { display: none; }
 .hud-btn[aria-pressed="true"] { color: var(--accent); background: rgb(var(--accent-rgb) / 0.18); }
 .chip.toggle svg { width: 16px; height: 16px; }
 

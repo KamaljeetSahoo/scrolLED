@@ -108,6 +108,68 @@ await withPage(GL, { width: 393, height: 660 }, async (page, errors) => {
   check('no page errors (overlay run)', errors.length === 0, errors.join(' | '));
 });
 
+// Present overlay: every control reachable, full screen toggles, drag scrubs.
+await withPage(GL, { width: 393, height: 660 }, async (page, errors) => {
+  await page.goto(base + '#m=A+LONG+ENOUGH+MESSAGE+TO+KEEP+SCROLLING&s=45', { waitUntil: 'load' });
+  await page.evaluate(() => { try { sessionStorage.setItem('scrolled.booted', '1'); localStorage.setItem('scrolled.hint', '1'); } catch (e) {} });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => !document.body.classList.contains('booting'), null, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1200);
+  await page.click('#presentBtn');
+  await page.waitForTimeout(2500);
+  const openHud = async () => {
+    for (let i = 0; i < 4; i++) {
+      if (await page.evaluate(() => document.getElementById('hud').classList.contains('show'))) break;
+      await page.touchscreen.tap(Math.round(393 / 2), Math.round(660 / 2));
+      await page.waitForTimeout(450);
+    }
+    await page.waitForTimeout(450);
+  };
+  await openHud();
+  const hud = await page.evaluate(() => {
+    const h = document.getElementById('hud').getBoundingClientRect();
+    const btns = [...document.querySelectorAll('#hud .hud-btn')].filter(b => !b.hidden);
+    const unreachable = btns.filter(b => { const r = b.getBoundingClientRect(); const t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !(t === b || b.contains(t)); }).map(b => b.getAttribute('aria-label'));
+    return { labels: btns.map(b => b.getAttribute('aria-label')), unreachable, inside: h.left >= -1 && h.top >= -1 && h.right <= 393 + 1 && h.bottom <= 660 + 1 };
+  });
+  check('overlay offers exit, pause, full screen and beat', hud.labels.length === 4, hud.labels.join(', '));
+  check('every overlay button is reachable', hud.unreachable.length === 0, hud.unreachable.join(', '));
+  check('overlay sits inside the screen', hud.inside);
+  const tapFs = async () => {
+    await openHud();
+    const c = await page.evaluate(() => { const r = document.getElementById('fsBtn').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; });
+    await page.touchscreen.tap(c.x, c.y);
+    await page.waitForTimeout(900);
+  };
+  const fsBefore = await page.evaluate(() => !!document.fullscreenElement);
+  await tapFs();
+  const fsAfter = await page.evaluate(() => ({ fs: !!document.fullscreenElement, present: document.body.classList.contains('present') }));
+  check('full screen button toggles full screen', fsAfter.fs !== fsBefore, `${fsBefore} -> ${fsAfter.fs}`);
+  check('leaving full screen stays in Present', fsAfter.present);
+  const scrub = await page.evaluate(async () => {
+    const e = window.scrolled.engine, c = document.getElementById('led');
+    const rotated = Math.round(e.angleCur / 90) % 2 !== 0;
+    const bx = Math.round(e.rect.x + e.rect.w / 2), by = Math.round(e.rect.y + e.rect.h / 2);
+    const send = (t, x, y) => c.dispatchEvent(new PointerEvent(t, { pointerId: 1, pointerType: 'touch', clientX: x, clientY: y, bubbles: true, isPrimary: true }));
+    const frame = () => new Promise(r => requestAnimationFrame(r));
+    await frame();
+    const start = e.X;
+    send('pointerdown', bx, by);
+    let d = 0;
+    for (let i = 1; i <= 14; i++) { d = i * 12; send('pointermove', rotated ? bx : bx + d, rotated ? by + d : by); await frame(); }
+    const dragged = e.X, grabbed = !!e.grab;
+    send('pointerup', rotated ? bx : bx + d, rotated ? by + d : by);
+    const xs = [];
+    for (let i = 0; i < 24; i++) { await frame(); xs.push(e.X); }
+    let fwd = 0;
+    for (let i = 1; i < xs.length; i++) { const dd = xs[i] - xs[i - 1]; if (Math.abs(dd) > 100) continue; if (dd < -0.05) fwd++; }
+    return { moved: Math.abs(dragged - start) > 2, grabbed, resumes: fwd >= 3, released: !e.grab };
+  });
+  check('dragging the sign scrubs it', scrub.moved && scrub.grabbed);
+  check('letting go resumes scrolling', scrub.resumes && scrub.released);
+  check('no page errors (present run)', errors.length === 0, errors.join(' | '));
+});
+
 await withPage(GL, { width: 1280, height: 800 }, async (page, errors) => {
   await page.goto(base, { waitUntil: 'load' });
   await page.waitForFunction(() => !document.body.classList.contains('booting'), null, { timeout: 15000 }).catch(() => {});
