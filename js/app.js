@@ -20,8 +20,8 @@ const WHITE_RGB = [0.957, 0.965, 1];
 const RAINBOW_ACCENT = [0.69, 0.42, 0.97];
 /** Name the neighbourhood of a hue, for screen readers and the URL. */
 function hueName(h) {
-  const NAMES = [[15, 'red'], [45, 'orange'], [65, 'yellow'], [100, 'lime'], [150, 'green'], [195, 'cyan'],
-                 [240, 'blue'], [265, 'indigo'], [290, 'violet'], [330, 'magenta'], [360, 'red']];
+  const NAMES = [[15, 'red'], [45, 'orange'], [68, 'yellow'], [100, 'lime'], [160, 'green'], [200, 'cyan'],
+                 [245, 'blue'], [270, 'indigo'], [295, 'violet'], [335, 'magenta'], [360, 'red']];
   for (const [limit, name] of NAMES) if (h < limit) return name;
   return 'red';
 }
@@ -71,6 +71,7 @@ function normalizeColor(c) {
   const n = Math.round(Number(c));
   return Number.isFinite(n) ? ((n % 360) + 360) % 360 : DEFAULTS.color;
 }
+const capitalize = (w) => w.charAt(0).toUpperCase() + w.slice(1);
 const clipText = (t) => Array.from(String(t == null ? '' : t)).slice(0, 200).join(''); // by code point, never splitting an emoji
 function sanitize(s) {
   if (!Object.hasOwn(FONT_BY_ID, s.font)) s.font = DEFAULTS.font;
@@ -141,7 +142,8 @@ const msg = $('#msg');
 const clearBtn = $('#clearBtn');
 const recentsEl = $('#recents');
 const fontsEl = $('#fonts');
-const hueEl = $('#hue');
+const colorEl = $('#color');
+const colorWord = $('#colorWord');
 const whiteBtn = $('#whiteBtn');
 const rainbowBtn = $('#rainbowBtn');
 const speedEl = $('#speed');
@@ -299,7 +301,6 @@ function updateAngle() {
 function onResize() {
   engine.resize();
   updateAngle();
-  syncColors();   // the hue thumb is positioned in pixels along the track
   requestLayout();
 }
 addEventListener('resize', onResize);
@@ -394,15 +395,10 @@ function syncFonts() {
   if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: reducedMotion ? 'auto' : 'smooth' });
 }
 
-// Colour picker: touch the spectrum anywhere and drag. White and rainbow sit on
-// the ends as taps, so the whole control is one row that never scrolls.
-const HUE_PAD = 15;                                // half the thumb, so both ends stay reachable
-function hueSpan() { return Math.max(1, hueEl.getBoundingClientRect().width - HUE_PAD * 2); }
-function pickHueFrom(clientX) {
-  const r = hueEl.getBoundingClientRect();
-  const t = Math.min(1, Math.max(0, (clientX - r.left - HUE_PAD) / hueSpan()));
-  return Math.round(t * 359);
-}
+// Colour: the same range input as Speed, with the spectrum on its track. It is
+// a native slider on purpose — it drags, it takes arrow keys and it stays usable
+// even if the stylesheet is a version behind. White and rainbow are two chips
+// beside the label; touching the track always comes back to a hue.
 function setColor(c, { haptic = true } = {}) {
   const next = normalizeColor(c);
   if (next === state.color) return;
@@ -413,44 +409,27 @@ function setColor(c, { haptic = true } = {}) {
   persist();
   if (haptic) vibrate(6);
 }
-let huePtr = null;
-hueEl.addEventListener('pointerdown', (e) => {
-  huePtr = e.pointerId;
-  try { hueEl.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
-  setColor(pickHueFrom(e.clientX));
-  e.preventDefault();
-});
-hueEl.addEventListener('pointermove', (e) => {
-  if (huePtr !== e.pointerId) return;
-  setColor(pickHueFrom(e.clientX), { haptic: false });
-});
-const endHue = (e) => { if (huePtr === e.pointerId) huePtr = null; };
-hueEl.addEventListener('pointerup', endHue);
-hueEl.addEventListener('pointercancel', endHue);
-hueEl.addEventListener('keydown', (e) => {
-  const step = e.shiftKey ? 15 : 3;
-  const from = isHue(state.color) ? state.color : 0;
-  let next = null;
-  if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = from + step;
-  else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = from - step;
-  else if (e.key === 'Home') next = 0;
-  else if (e.key === 'End') next = 359;
-  if (next === null) return;
-  e.preventDefault();
-  setColor(next);
-});
-whiteBtn.addEventListener('click', () => setColor(state.color === 'white' ? 8 : 'white'));
-rainbowBtn.addEventListener('click', () => setColor(state.color === 'rainbow' ? 8 : 'rainbow'));
-
+function buildColors() {
+  let lastHueTick = -1;
+  colorEl.addEventListener('input', () => {
+    const h = +colorEl.value;
+    setColor(h, { haptic: false });
+    const tick = Math.floor(h / 24);
+    if (tick !== lastHueTick) { lastHueTick = tick; vibrate(4); }
+  });
+  whiteBtn.addEventListener('click', () => setColor(state.color === 'white' ? +colorEl.value : 'white'));
+  rainbowBtn.addEventListener('click', () => setColor(state.color === 'rainbow' ? +colorEl.value : 'rainbow'));
+  syncColors();
+}
 function syncColors() {
   const c = state.color;
+  const named = c === 'white' ? 'White' : c === 'rainbow' ? 'Rainbow' : capitalize(hueName(c));
+  if (isHue(c)) colorEl.value = c;              // the two modes leave the track where it was
+  colorEl.classList.toggle('muted', !isHue(c));
+  colorEl.setAttribute('aria-valuetext', named);
+  colorWord.textContent = named;
   whiteBtn.setAttribute('aria-pressed', String(c === 'white'));
   rainbowBtn.setAttribute('aria-pressed', String(c === 'rainbow'));
-  hueEl.classList.toggle('muted', !isHue(c));
-  const h = isHue(c) ? c : 0;
-  hueEl.style.setProperty('--p', `${HUE_PAD + (h / 359) * hueSpan()}px`);
-  hueEl.setAttribute('aria-valuenow', String(h));
-  hueEl.setAttribute('aria-valuetext', isHue(c) ? hueName(h) : c);
 }
 
 function buildSizes() {
@@ -957,15 +936,22 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 }
 
 // -------------------------------------------------------------------- boot
-buildWordmark();
-buildFonts();
-buildSizes();
-syncColors();
-syncSpeed();
-syncToggles();
-syncMsg();
-renderRecents();
-setAccent(state.color);
+// Each control is wired in isolation. One that throws — a stale cached document
+// missing an element, a browser without some API — must never take the rest of
+// the panel down with it. Wiring these at the top level meant one bad lookup
+// could stop every line after it from running.
+function safely(what, fn) {
+  try { fn(); } catch (e) { console.error(`scrolLED: ${what} failed`, e); }
+}
+safely('wordmark', buildWordmark);
+safely('fonts', buildFonts);
+safely('colour', buildColors);
+safely('dot size', buildSizes);
+safely('speed', syncSpeed);
+safely('toggles', syncToggles);
+safely('message', syncMsg);
+safely('recents', renderRecents);
+safely('accent', () => setAccent(state.color));
 body.classList.add('booting');
 
 let warm = false;

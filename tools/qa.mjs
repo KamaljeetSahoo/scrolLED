@@ -17,7 +17,7 @@ let failures = 0;
 const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${extra ? ' ' + extra : ''}`); if (!ok) failures++; };
 
 async function withPage(args, viewport, fn) {
-  const browser = await chromium.launch({ args });
+  const browser = await chromium.launch({ args, executablePath: process.env.PW_CHROME || undefined });
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: viewport.width < 500, hasTouch: viewport.width < 500 });
   const page = await ctx.newPage();
   const errors = [];
@@ -103,36 +103,56 @@ await withPage(GL, { width: 393, height: 660 }, async (page, errors) => {
   await page.waitForTimeout(700);
   const afterToast = await clear();
   check('toast releases taps after it fades', afterToast.length === 0, afterToast.join('; '));
-  // Colour: one drag across the spectrum, nothing scrolling, nothing clipped.
-  const hue = await page.locator('#hue').boundingBox();
-  const drag = await page.evaluate(async ({ x, y, w }) => {
-    const el = document.getElementById('hue');
-    const send = (t, cx) => el.dispatchEvent(new PointerEvent(t, { pointerId: 1, pointerType: 'touch', clientX: cx, clientY: y, bubbles: true, isPrimary: true }));
+  // Colour is a native range input, so it drags, takes keys and needs no bespoke CSS.
+  const drag = await page.evaluate(async () => {
+    const el = document.getElementById('color');
     const vals = [];
-    send('pointerdown', x + 6);
-    for (let i = 0; i <= 10; i++) { send('pointermove', x + 6 + (w - 12) * (i / 10)); await new Promise(r => requestAnimationFrame(r)); vals.push(window.scrolled.state.color); }
-    send('pointerup', x + w - 6);
+    for (let i = 0; i <= 10; i++) {
+      el.value = String(Math.round((359 * i) / 10));
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => requestAnimationFrame(r));
+      vals.push(window.scrolled.state.color);
+    }
     return vals;
-  }, { x: hue.x, y: hue.y + hue.height / 2, w: hue.width });
+  });
   const rising = drag.every((v, i) => i === 0 || v >= drag[i - 1]);
-  check('dragging the spectrum sweeps the whole hue range', rising && drag[0] <= 5 && drag[drag.length - 1] >= 350, drag.join(','));
+  check('the colour slider sweeps the whole hue range', rising && drag[0] === 0 && drag[drag.length - 1] === 359, drag.join(','));
+  await page.locator('#color').focus();
+  const before = await page.evaluate(() => window.scrolled.state.color);
+  await page.keyboard.press('ArrowLeft'); await page.waitForTimeout(150);
+  const afterKey = await page.evaluate(() => window.scrolled.state.color);
+  check('the colour slider takes arrow keys', afterKey === before - 1, `${before} -> ${afterKey}`);
   const colour = await page.evaluate(() => {
-    const row = document.querySelector('.picker');
     const sheet = document.getElementById('sheet').getBoundingClientRect();
-    const caps = [...document.querySelectorAll('.cap')];
+    const parts = [document.getElementById('color'), document.getElementById('whiteBtn'), document.getElementById('rainbowBtn')];
     return {
-      clipped: caps.some(c => { const b = c.getBoundingClientRect(); return b.left < sheet.left - 0.5 || b.right > sheet.right + 0.5; }),
-      reachable: caps.every(c => { const b = c.getBoundingClientRect(); const t = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return t === c || c.contains(t); }),
-      scrolls: row.scrollWidth > row.clientWidth + 1,
+      clipped: parts.some(c => { const b = c.getBoundingClientRect(); return b.left < sheet.left - 0.5 || b.right > sheet.right + 0.5; }),
+      reachable: parts.every(c => { const b = c.getBoundingClientRect(); const t = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return t === c || c.contains(t); }),
+      sized: parts.every(c => { const b = c.getBoundingClientRect(); return b.width > 20 && b.height > 14; }),
     };
   });
-  check('colour caps are not clipped by the sheet', !colour.clipped);
-  check('colour caps are tappable', colour.reachable);
+  check('the colour row is not clipped by the sheet', !colour.clipped);
+  check('the colour row is tappable', colour.reachable);
+  check('the colour row has real size', colour.sized);
   await page.click('#whiteBtn'); await page.waitForTimeout(250);
   const white = await page.evaluate(() => window.scrolled.state.color);
   await page.click('#rainbowBtn'); await page.waitForTimeout(250);
   const rainbow = await page.evaluate(() => ({ c: window.scrolled.state.color, mode: window.scrolled.engine.mode }));
-  check('white and rainbow caps select their modes', white === 'white' && rainbow.c === 'rainbow' && rainbow.mode === 1, `${white} / ${rainbow.c}`);
+  check('white and rainbow chips select their modes', white === 'white' && rainbow.c === 'rainbow' && rainbow.mode === 1, `${white} / ${rainbow.c}`);
+  // Dot size: every step selects, and the sliding highlight follows it.
+  const sizes = [];
+  for (const label of ['XL', 'M', 'S', 'L']) {
+    await page.click(`#sizes button:text-is("${label}")`);
+    await page.waitForTimeout(220);
+    sizes.push(await page.evaluate(() => ({
+      rows: window.scrolled.state.rows,
+      i: getComputedStyle(document.getElementById('sizes')).getPropertyValue('--i').trim(),
+      checked: document.querySelector('#sizes [aria-checked="true"]')?.textContent,
+    })));
+  }
+  check('every dot size selects', sizes.map(s => s.rows).join(',') === '10,30,40,20', JSON.stringify(sizes.map(s => s.rows)));
+  check('the dot size highlight follows the selection', sizes.map(s => s.i).join(',') === '0,2,3,1', JSON.stringify(sizes.map(s => s.i)));
+  check('the dot size label matches the selection', sizes.map(s => s.checked).join(',') === 'XL,M,S,L', JSON.stringify(sizes.map(s => s.checked)));
 
   // and the button actually works from a real coordinate tap
   const box = await page.locator('#presentBtn').boundingBox();
@@ -244,6 +264,55 @@ await withPage(GL, { width: 1280, height: 800 }, async (page, errors) => {
   const side = await page.evaluate(() => document.querySelector('#sheet').getBoundingClientRect().left > innerWidth * 0.5);
   check('desktop uses side panel layout', side);
   check('no page errors (desktop run)', errors.length === 0, errors.join(' | '));
+});
+
+// A half-updated cache can pair this document with a stylesheet from an older
+// release. Every control must still be visible, sized and operable then: that is
+// what a native <input> buys over a div wearing a role. Blocking the stylesheet
+// outright is the strictest form of the same test.
+await withPage(GL, { width: 390, height: 844 }, async (page, errors) => {
+  await page.route('**/css/app.css', (r) => r.abort());
+  await page.goto(base, { waitUntil: 'load' });
+  await page.waitForFunction(() => !document.body.classList.contains('booting'), null, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  const alive = await page.evaluate(() => {
+    const sized = (sel) => { const e = document.querySelector(sel); if (!e) return false; const b = e.getBoundingClientRect(); return b.width > 20 && b.height > 8; };
+    return {
+      booted: !!window.scrolled,
+      color: sized('#color'), white: sized('#whiteBtn'), rainbow: sized('#rainbowBtn'),
+      sizes: sized('#sizes'), speed: sized('#speed'), present: sized('#presentBtn'),
+      sizeKids: document.querySelectorAll('#sizes button').length,
+    };
+  });
+  check('stylesheetless: every control is still on screen', Object.values(alive).every(Boolean), JSON.stringify(alive));
+  const works = await page.evaluate(async () => {
+    const el = document.getElementById('color');
+    el.value = '200'; el.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 120));
+    const colour = window.scrolled.state.color;
+    document.querySelector('#sizes button:last-child').click();
+    await new Promise(r => setTimeout(r, 120));
+    return { colour, rows: window.scrolled.state.rows };
+  });
+  check('stylesheetless: colour and dot size still work', works.colour === 200 && works.rows === 40, JSON.stringify(works));
+  const real = errors.filter(e => !/app\.css|ERR_FAILED/.test(e));   // the blocked stylesheet is the point of this run
+  check('no page errors (stylesheetless run)', real.length === 0, real.join(' | '));
+});
+
+// One broken control must not take the panel down with it.
+await withPage(GL, { width: 390, height: 844 }, async (page, errors) => {
+  await page.addInitScript(() => {
+    addEventListener('DOMContentLoaded', () => document.getElementById('color')?.remove(), { once: true });
+  });
+  await page.goto(base, { waitUntil: 'load' });
+  await page.waitForFunction(() => !document.body.classList.contains('booting'), null, { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  const rest = await page.evaluate(async () => {
+    document.querySelector('#sizes button:last-child')?.click();
+    await new Promise(r => setTimeout(r, 120));
+    return { booted: !!window.scrolled, sizeKids: document.querySelectorAll('#sizes button').length, rows: window.scrolled?.state?.rows, fonts: document.querySelectorAll('#fonts button').length };
+  });
+  check('a missing control does not break the others', rest.booted && rest.sizeKids === 4 && rest.rows === 40 && rest.fonts > 0, JSON.stringify(rest));
 });
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');

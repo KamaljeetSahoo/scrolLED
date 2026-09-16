@@ -20,7 +20,7 @@ const VIEWPORTS = [
   ['iPhone15ProMax-safari', 430, 745], ['pixel7-chrome', 412, 780], ['smallAndroid', 360, 640], ['tiny', 320, 480],
   ['landscape-phone', 852, 393], ['iPad', 768, 1024], ['desktop', 1280, 800],
 ];
-const b = await chromium.launch({ args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'] });
+const b = await chromium.launch({ args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'], executablePath: process.env.PW_CHROME || undefined });
 const problems = [];
 for (const [name, w, h] of VIEWPORTS) {
   const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, isMobile: w < 800, hasTouch: w < 800 });
