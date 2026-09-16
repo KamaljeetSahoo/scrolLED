@@ -214,14 +214,14 @@ function speedName(s) {
 
 // ------------------------------------------------------------------ layout
 let present = false;
-let rotOffset = 0;
-let autoAngle = null;   // from gravity, when available
+let autoAngle = null;   // physical orientation from gravity, when available
 let booting = true;
 
 function presentAngle() {
   const portrait = innerHeight > innerWidth;
-  const base = autoAngle !== null ? autoAngle : (portrait ? 90 : 0);
-  return (base + rotOffset) % 360;
+  // With gravity we know which way is up. Without it, assume the phone will be
+  // held sideways, which is how people hold up a sign.
+  return autoAngle !== null ? autoAngle : (portrait ? 90 : 0);
 }
 
 function layout() {
@@ -610,8 +610,6 @@ async function enterPresent() {
   startMotion(); // inside the tap: iOS shows its motion permission prompt here
   try { if (document.documentElement.requestFullscreen && !document.fullscreenElement) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) { /* iOS */ }
   if (!present) return; // backed out while the browser was going full screen
-  try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) { /* unsupported or not fullscreen */ }
-  if (!present) return;
   updateAngle();
   layout();
   requestWakeLock();
@@ -620,16 +618,29 @@ async function enterPresent() {
   if (!seenHint) {
     toast('Tap the screen for controls', 2600);
     try { localStorage.setItem('scrolled.hint', '1'); } catch (e) { /* ignore */ }
+    setTimeout(offerTrueFullscreen, 3200);
   } else {
     showHud();
+    offerTrueFullscreen();
   }
+}
+
+// iPhone Safari has no full-screen API, so its toolbars stay put. Installing the
+// app is the only way to lose them; mention it once, with a way to see how.
+function offerTrueFullscreen() {
+  if (!present || isStandalone || document.fullscreenElement) return;
+  if (!isIOS) return;
+  let seen = false;
+  try { seen = !!localStorage.getItem('scrolled.fs'); } catch (e) { /* ignore */ }
+  if (seen) return;
+  try { localStorage.setItem('scrolled.fs', '1'); } catch (e) { /* ignore */ }
+  toast('Safari keeps its bars on screen', 7000, { label: 'Go full screen', onClick: () => { exitPresent(); showInstallCard(); } });
 }
 
 function exitPresent({ fromHistory = false } = {}) {
   if (!present) return;
   if (!fromHistory && history.state && history.state.present) { history.back(); return; }
   present = false;
-  rotOffset = 0;
   engine.paused = false;
   engine.setPresent(0);
   body.classList.remove('present', 'paused');
@@ -637,7 +648,6 @@ function exitPresent({ fromHistory = false } = {}) {
   hideHud();
   hideToast();
   releaseWakeLock();
-  try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) { /* ignore */ }
   if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
   updateAngle();
   updateThemeColor();
@@ -665,12 +675,6 @@ addEventListener('pageshow', (e) => { if (e.persisted) { engine.start(); if (pre
 
 presentBtn.addEventListener('click', enterPresent);
 $('#exitBtn').addEventListener('click', () => { vibrate(6); exitPresent(); });
-const ROT_CYCLE = [0, 180, 90, 270];
-function cycleRotation() {
-  rotOffset = ROT_CYCLE[(ROT_CYCLE.indexOf(rotOffset) + 1) % ROT_CYCLE.length];
-  updateAngle(); layout(); showHud(); vibrate(6);
-}
-$('#rotateBtn').addEventListener('click', cycleRotation);
 $('#pauseBtn').addEventListener('click', () => { togglePause(); showHud(); });
 function togglePause() {
   engine.paused = !engine.paused;
@@ -689,7 +693,6 @@ addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && present) { exitPresent(); e.preventDefault(); }
   else if ((e.key === 'f' || e.key === 'F') && !present) { enterPresent(); e.preventDefault(); }
   else if (e.key === ' ') { togglePause(); if (present) showHud(); e.preventDefault(); }
-  else if ((e.key === 'r' || e.key === 'R') && present) cycleRotation();
 });
 
 // ------------------------------------------------------------------- toast
