@@ -139,3 +139,15 @@ const hard = stats[stats.length - 1];
 console.log(`\n  a beat should move a good share of the screen, not a handful of pixels.`);
 console.log(`  hard beat: mean Δ ${hard.meanDelta}/255 over ${hard.movedPct}% of the screen\n`);
 await browser.close();
+
+// Gates. Before this was fixed a hard beat scored mean Δ 8.0 over 34.9%, which is
+// what "not really noticeable" looks like as a number.
+let bad = 0;
+const gate = (name, ok, detail) => { console.log(`  ${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' ' + detail : ''}`); if (!ok) bad++; };
+gate('the measurement frame was stationary', measure.drift.mean < 0.5, `drift ${measure.drift.mean}`);
+gate('a beat moves most of the screen', hard.movedPct > 60, `${hard.movedPct}%`);
+gate('a beat is a big change, not a nudge', hard.meanDelta > 15, `mean Δ ${hard.meanDelta}/255`);
+gate('a beat reads on top of sustained energy',
+  hard.meanDelta > stats[1].meanDelta * 2, `beat ${hard.meanDelta} vs sustained ${stats[1].meanDelta}`);
+console.log(bad ? `\n${bad} check(s) failed\n` : '\nall checks passed\n');
+process.exit(bad ? 1 : 0);

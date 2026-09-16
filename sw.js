@@ -1,7 +1,7 @@
 /* scrolLED service worker: precache the app shell so it launches offline, and
    pick up new versions in the background (the page offers a refresh). Bump
    VERSION whenever any precached file changes. */
-const VERSION = 'v1.10.0';
+const VERSION = 'v1.11.0';
 const CACHE = `scrolled-${VERSION}`;
 const SHELL = [
   './',

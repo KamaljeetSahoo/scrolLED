@@ -138,6 +138,7 @@ function persist() {
 const canvas = $('#led');
 const sheet = $('#sheet');
 const topBar = $('#top');
+let lastMicVar = -1;
 const msg = $('#msg');
 const clearBtn = $('#clearBtn');
 const recentsEl = $('#recents');
@@ -186,9 +187,18 @@ engine.onFrame = () => {
   const dt = (now - lastFrameAt) / 1000; lastFrameAt = now;
   // The senses feed the sign every frame (and, subtly, the UI).
   reactive.update(dt);
-  engine.setReactive(reactive.pulse, reactive.beat, reactive.up);
+  // A hit now lights the whole panel, which is the point, but a full-field flash on
+  // every kick is exactly what someone who asked for less motion is avoiding. Send
+  // a fraction of it there instead of switching the feature off.
+  engine.setReactive(reactive.pulse, reducedMotion ? reactive.beat * 0.22 : reactive.beat, reactive.up);
   const b = Math.max(reactive.beat, reactive.pulse * 0.5);
   if (!reducedMotion && Math.abs(b - lastBeatVar) > 0.02) { lastBeatVar = b; root.style.setProperty('--beat', b.toFixed(3)); }
+  // Show the room's level on the Beat chip, so "it is not doing anything" can be
+  // told apart from "it is not hearing anything" without guessing.
+  if (reactive.micOn && Math.abs(reactive.level - lastMicVar) > 0.03) {
+    lastMicVar = reactive.level;
+    beatBtn.style.setProperty('--live', reactive.level.toFixed(2));
+  }
   if (!booting && layoutFrames > 0) { layoutFrames--; layout(); }
   videoFs.grabFrame(); // feeds iPhone's full-screen video path; no-op otherwise
 };
@@ -488,6 +498,8 @@ glowBtn.addEventListener('click', () => { state.glow = (state.glow + 1) % 3; syn
 function syncMic() {
   const on = reactive.micOn;
   beatBtn.setAttribute('aria-pressed', String(on));
+  beatBtn.classList.toggle('listening', on);
+  if (!on) { beatBtn.style.setProperty('--live', '0'); lastMicVar = -1; }
   micBtn.setAttribute('aria-pressed', String(on));
 }
 async function toggleMic() {

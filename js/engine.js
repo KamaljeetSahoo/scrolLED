@@ -93,7 +93,7 @@ void main() {
     float small = clamp((uPitch - 4.0) / 8.0, 0.0, 1.0);
     float R = mix(mix(0.44, 0.37, small), 0.45, uPresent);   // tiny LEDs and presenting: fuller discs
     if (uShape > 0.5) R -= 0.03;
-    R *= 1.0 + 0.05 * uPulse + 0.04 * uBeat;                  // the discs swell with the music
+    R *= 1.0 + 0.08 * uPulse + 0.30 * uBeat;                  // the discs swell hard on a hit
     float d = uShape < 0.5 ? length(f) : max(abs(f.x), abs(f.y));
     float aa = 0.8 / uPitch;
     core = 1.0 - smoothstep(R - aa, R + aa, d);
@@ -103,7 +103,12 @@ void main() {
     vec3 lit = mix(c, vec3(max(c.r, max(c.g, c.b))), mix(0.22, 0.45, uPresent) * hot);
     lit *= (0.78 + 0.42 * dome) * (1.0 + 0.30 * uBeat);
     lit *= 0.94 + 0.06 * hash(cell);                          // tiny per-LED gain variance
-    vec3 unlit = (vec3(0.0026) + uTint * 0.0014) * (1.0 - uPresent) * mix(0.5, 1.0, small);
+    // Most of the panel is dark LEDs, and presenting pinned them at pure black —
+    // the one large area of the frame with room left to move. Lighting them on a
+    // hit makes the whole sign breathe, where pushing lit cores harder only feeds
+    // the tone map's shoulder and changes almost nothing on screen.
+    vec3 unlit = (vec3(0.0026) + uTint * 0.0014) * (1.0 - uPresent) * mix(0.5, 1.0, small)
+               + uTint * (0.0115 * uBeat + 0.0030 * uPulse);
     col += core * (unlit * (1.0 - v) + lit);
   }
 
@@ -115,7 +120,7 @@ void main() {
 
   // The halo sums are perceptual-ish quantities; squaring them before adding in
   // linear light keeps the falloff soft instead of flooding the gaps.
-  float glowGain = (0.05 + 0.17 * uGlow) * (1.0 + 0.35 * uPresent) * (1.0 + 0.9 * uPulse + 0.7 * uBeat);
+  float glowGain = (0.05 + 0.17 * uGlow) * (1.0 + 0.35 * uPresent) * (1.0 + 0.9 * uPulse + 1.7 * uBeat);
   col += halo * halo * glowGain * (1.0 - 0.55 * core);
   col += wideCol * wideCol * (0.07 * uGlow);
   col *= uBright;
@@ -647,12 +652,18 @@ export class Engine {
     const f = cy - (s * LW / 2 + c * LH / 2);
     ctx.setTransform(c, s, -s, c, e, f);
     ctx.globalAlpha = clamp(this.brightCur, 0, 1);
+    // No shader here, so the hit has to come from the sprite level: dark LEDs pick
+    // up a dim glow and lit ones step up the sheet, which is this renderer's only
+    // way to make the panel breathe.
+    const hit = this.beat, floorLevel = Math.round(hit * (sp.levels - 1) * 0.30);
     const lin = this.lin, ox = this.gridOriginX, oy = this.gridOriginY, size = sp.size, half = size / 2;
     for (let r = 0; r < rows; r++) {
       for (let col = 0; col < cols; col++) {
         const i = (r * cols + col) * 4;
         const lum = (lin[i] * 0.2126 + lin[i + 1] * 0.7152 + lin[i + 2] * 0.0722) / 255;
-        const level = Math.round(clamp(Math.pow(lum, 0.6), 0, 1) * (sp.levels - 1));
+        let level = Math.round(clamp(Math.pow(lum, 0.6), 0, 1) * (sp.levels - 1));
+        if (level > 0) level = Math.min(sp.levels - 1, Math.round(level * (1 + 0.22 * hit)));
+        else level = floorLevel;
         if (level === 0 && this.presentCur > 0.5) continue; // presenting: true black between LEDs
         ctx.drawImage(sp.sheet, level * size, 0, size, size, ox + col * PX + PX / 2 - half, oy + r * PX + PX / 2 - half, size, size);
       }

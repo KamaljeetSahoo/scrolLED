@@ -17,7 +17,7 @@ It is a static PWA with no build step and no dependencies. Open it once and it w
   - Installed is the best experience on iPhone regardless: no browser bars at all, and it works offline. `probe.html` is an unlinked diagnostic page that reports whether the video route works on a given device.
 - **Scrub with your finger**: drag the sign to push it forward or pull it back, in the editor or mid-show. Let go and it throws, then eases back to its cruising speed on its own.
 - **Short messages dwell**: text that fits slides in, holds centred for a moment, and slides out. Long messages loop.
-- **Beat** (opt-in, uses the microphone): the LEDs swell, the glow blooms and the colours punch on every bass hit. Turn it on with the Beat chip or the mic button in Present mode.
+- **Beat** (opt-in, uses the microphone): on every kick the discs swell, the glow blooms and the whole panel lights up behind the text. It listens for the *punch* — how far a hit rises above the bed of noise it lands on — rather than for loudness, because a club is loud continuously and any absolute meter sits pinned at the top with nothing left to say. The punch is then scaled against its own recent size, so a kick fills the range in a quiet room and in a wall of sound alike. While it is listening the Beat chip fills with the room's level, so you can tell "not reacting" from "not hearing". Turn it on with the Beat chip or the mic button in Present mode. With **reduce motion** on, the full-field flash is dialled down to a fraction rather than switched off.
 - **Motion**: tilt the phone and the highlight on each LED dome shifts like a real glossy LED catching the light; dance with it and the sign pulses with your movement.
 - **Boot sequence**: the sign powers on with a self-test sweep, sparkles in the wordmark, runs an RGB colour test, and hands over to your message. Tap to fast-forward.
 - **Share**: the URL hash carries the message and settings, so a link reproduces your sign. Where file sharing is supported, Share also attaches a rendered PNG card of the sign. Installed on Android, scrolLED appears in the system share sheet as a target too.
@@ -66,7 +66,16 @@ npm run font      # rebuild js/font5x8.js from tools/glyphs.json
 node tools/make-screenshots.mjs http://localhost:8080/   # manifest screenshots + OG image
 node tools/qa.mjs http://localhost:8080/                 # end-to-end smoke test (boot, SW, state, present, fallback)
 node tools/audit-layout.mjs http://localhost:8080/       # layout audit across 11 phone/tablet/desktop viewports
+npm run ear                                              # what the detector hears in five rooms, from a bedroom to a loud club
+npm run beat -- http://localhost:8080/                   # how far the pixels actually move between a quiet bar and a kick
 ```
+
+`ear` and `beat` both exit non-zero if the sign stops reacting. They exist because
+"the mic response is not noticeable" is not something you can settle by looking at a
+diff: `ear` drives the real `Reactive` class with a synthetic spectrum and reports
+its dynamic range and hit rate per room, and `beat` renders Present mode at forced
+values and measures the screen. Between them they caught a detector that found 1 kick
+in 20 in a loud room and a beat that moved the screen by 8/255.
 
 `qa.mjs` and `audit-layout.mjs` launch Chromium through Playwright. Set `PW_CHROME`
 to a Chromium binary already on the machine if you would rather not download one.

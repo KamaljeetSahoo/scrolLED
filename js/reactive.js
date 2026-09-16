@@ -1,7 +1,8 @@
 // reactive.js — the sign's senses. Listens to the microphone (bass energy and
 // beats) and to the motion sensors (how hard the phone is moving, which way is
 // up) and distils them into a few smooth numbers the renderer and UI can use:
-//   level  0..1  how loud the bass is right now (normalised to the room)
+//   level  0..1  how hard the music is hitting right now — the size of the current
+//                 bass transient against the size of recent ones, NOT the volume
 //   beat   0..1  a short impulse on each detected beat, decaying
 //   motion 0..1  how vigorously the phone is moving
 //   pulse  0..1  max of the above, the one number most effects use
@@ -23,7 +24,7 @@ export class Reactive {
     this.orientation = null;     // last reported physical orientation, or null
     // mic internals
     this.ctx = null; this.stream = null; this.analyser = null; this.bins = null;
-    this.env = 0; this.peak = 40; this.avg = 0; this.lastBeat = 0;
+    this.fast = 0; this.slow = 0; this.punchAvg = 0; this.lastBeat = 0;
     // motion internals
     this.gEst = null; this.motionEnv = 0; this.candidate = null; this.candSince = 0;
     this._onMotion = (e) => this._motion(e);
@@ -66,6 +67,7 @@ export class Reactive {
     if (this.ctx) this.ctx.close().catch(() => {});
     this.ctx = null; this.stream = null; this.analyser = null; this.bins = null;
     this.micOn = false; this.level = 0; this.beat = 0;
+    this.fast = 0; this.slow = 0; this.punchAvg = 0;
   }
 
   /** Pause/resume around visibility changes (mic and motion sensors). */
@@ -162,14 +164,27 @@ export class Reactive {
       let bass = 0;
       for (let i = 1; i <= 6; i++) bass += this.bins[i];
       bass /= 6;
-      this.peak = Math.max(40, bass, decay(this.peak, dt, 4));
-      this.env = Math.max(bass, decay(this.env, dt, 0.25));
-      this.level = clamp01(this.env / this.peak);
-      const avg = this.avg;
-      this.avg += (bass - avg) * (1 - Math.exp(-dt / 1.2));
+      // Loudness is the wrong thing to measure in the room this is built for: a
+      // club is loud continuously, so any absolute meter sits pinned at the top
+      // with nothing left to say. What still moves there is the PUNCH — how far
+      // a kick rises above the bed of noise it lands on. Two envelopes on the
+      // same band give that: one that snaps up to a transient and falls away in
+      // a moment, one that settles at whatever the room is doing.
+      this.fast = Math.max(bass, decay(this.fast, dt, 0.06));
+      this.slow += (bass - this.slow) * (1 - Math.exp(-dt / 0.9));
+      const audible = bass > 22 || this.fast > 30;      // a silent room must stay dark
+      const punch = audible ? Math.max(0, this.fast - this.slow) : 0;
+      // Then normalise the punch against its own recent size rather than against
+      // the volume, so a kick fills the range whether it is a quiet bedroom or a
+      // wall of sound. This is automatic gain on the beat, not on the music.
+      // Climb to a busier track over about a second, relax over three, so the
+      // reference is the size of a typical recent punch and never chases one kick.
+      this.punchAvg += (punch - this.punchAvg) * (1 - Math.exp(-dt / (punch > this.punchAvg ? 1.2 : 3)));
+      const ref = Math.max(4, this.punchAvg) * 1.3;
+      this.level = clamp01(punch / ref);
       const t = performance.now();
-      if (bass > avg * 1.35 + 10 && bass > 48 && t - this.lastBeat > 240) { this.lastBeat = t; this.beat = 1; }
-      else this.beat = decay(this.beat, dt, 0.18);
+      if (punch > ref * 0.75 && audible && t - this.lastBeat > 190) { this.lastBeat = t; this.beat = 1; }
+      else this.beat = decay(this.beat, dt, 0.26);      // long enough to actually see
     } else {
       this.level = decay(this.level, dt, 0.3);
       this.beat = decay(this.beat, dt, 0.18);

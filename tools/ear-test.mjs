@@ -88,3 +88,16 @@ for (const room of ROOMS) {
 }
 console.log(`\n  worst swing across the rooms with music playing: ${worst.toFixed(3)}`);
 console.log('  the sign can only pulse as much as this number lets it.\n');
+
+// Gates, so a change that quietly deafens the sign fails instead of just reading oddly.
+let bad = 0;
+const gate = (name, ok, detail) => { console.log(`  ${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' ' + detail : ''}`); if (!ok) bad++; };
+const music = ROOMS.filter((r) => r.kick).map((r) => ({ room: r, s: run(r) }));
+gate('every room keeps real dynamic range', music.every((m) => m.s.swing > 0.5),
+  music.map((m) => `${m.room.name}=${m.s.swing.toFixed(2)}`).join(' '));
+gate('kicks are found in every room', music.every((m) => m.s.fired >= m.s.played * 0.9),
+  music.map((m) => `${m.room.name}=${m.s.fired}/${m.s.played}`).join(' '));
+const quiet = run(ROOMS.find((r) => !r.kick));
+gate('silence stays dark', quiet.fired === 0 && quiet.hi === 0, `beats=${quiet.fired} peak=${quiet.hi}`);
+console.log(bad ? `\n${bad} check(s) failed\n` : '\nall checks passed\n');
+process.exit(bad ? 1 : 0);
