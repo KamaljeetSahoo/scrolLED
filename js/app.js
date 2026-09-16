@@ -676,7 +676,7 @@ addEventListener('hashchange', () => {
 if (history.state && history.state.present) { try { history.replaceState(null, ''); } catch (e) { /* ignore */ } } // reloaded mid-present
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') { engine.start(); reactive.resume().then(syncMic); if (present && !wakeLock) requestWakeLock(); }
-  else { engine.stop(); reactive.suspend(); }
+  else if (!videoFs.active) { engine.stop(); reactive.suspend(); }  // keep drawing behind the native player
 });
 addEventListener('pageshow', (e) => { if (e.persisted) { engine.start(); if (present) requestWakeLock(); } });
 
@@ -705,8 +705,9 @@ function toggleFullscreen() {
   if (isFullscreen()) { try { fsExit.call(document); } catch (e) { /* ignore */ } return; }
   if (fsRequest) { enterFullscreen(); return; }
   if (videoFs.enter()) {                             // iPhone: the sign goes full screen as a video
-    // iOS shows only the video there, so these controls are gone until they
-    // close it with the player's own Done button.
+    // One of the two iOS entry points reports nothing at all when it declines,
+    // so treat the player actually opening as the only proof it worked.
+    setTimeout(() => { if (present && !videoFs.active) showInstallCard(); }, 1200);
     return;
   }
   // Nothing left to try, so point at the one thing that does work. Never leave

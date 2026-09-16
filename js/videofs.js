@@ -30,6 +30,8 @@ export class VideoFullscreen {
     this.mirror = null;
     this.mirrorCtx = null;
     this.ready = false;   // a real frame has been seen coming out of the stream
+    this.pump = 0;
+    this._setActive = null;
   }
 
   /** True when this device can show a video full screen but not an element. */
@@ -57,12 +59,19 @@ export class VideoFullscreen {
       // It must be in the document and renderable; display:none would disqualify it.
       v.style.cssText = 'position:fixed;width:1px;height:1px;left:0;bottom:0;opacity:0.01;pointer-events:none;z-index:-1';
       document.body.appendChild(v);
-      v.addEventListener('webkitbeginfullscreen', () => { this.active = true; if (this.onChange) this.onChange(true); });
-      v.addEventListener('webkitendfullscreen', () => { this.active = false; if (this.onChange) this.onChange(false); });
-      v.addEventListener('webkitpresentationmodechanged', () => {
-        const on = v.webkitPresentationMode === 'fullscreen';
-        if (on !== this.active) { this.active = on; if (this.onChange) this.onChange(on); }
-      });
+      const setActive = (on) => {
+        if (on === this.active) return;
+        this.active = on;
+        // If the page's frame loop is throttled behind the native player the
+        // sign would freeze, so keep pushing frames on a timer as well.
+        clearInterval(this.pump);
+        this.pump = on ? setInterval(() => this.grabFrame(), 50) : 0;
+        if (this.onChange) this.onChange(on);
+      };
+      this._setActive = setActive;
+      v.addEventListener('webkitbeginfullscreen', () => setActive(true));
+      v.addEventListener('webkitendfullscreen', () => setActive(false));
+      v.addEventListener('webkitpresentationmodechanged', () => setActive(v.webkitPresentationMode === 'fullscreen'));
       // Capture from a mirror canvas rather than the WebGL one. A WebGL canvas
       // without preserveDrawingBuffer can hand back black frames, and turning
       // that on would cost every iPhone user frame rate for a feature most
@@ -150,6 +159,7 @@ export class VideoFullscreen {
     this.exit();
     if (this.stream) for (const t of this.stream.getTracks()) t.stop();
     if (this.video) { this.video.srcObject = null; this.video.remove(); }
+    clearInterval(this.pump); this.pump = 0;
     this.video = null; this.stream = null; this.active = false; this.warming = null;
     this.mirror = null; this.mirrorCtx = null; this.ready = false;
   }
